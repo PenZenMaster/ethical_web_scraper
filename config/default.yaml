@@ -1,0 +1,5 @@
+delay_seconds: 2
+user_agent: EthicalWebScraper/1.0 (+https://yourdomain.com/contact)
+headless: true
+timeout: 15000
+default_selector: ".product-detail[product-detail]"
