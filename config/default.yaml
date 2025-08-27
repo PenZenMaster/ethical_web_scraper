@@ -1,5 +1,37 @@
-delay_seconds: 2
-user_agent: EthicalWebScraper/1.0 (+https://yourdomain.com/contact)
-headless: true
-timeout: 15000
-default_selector: ".product-detail[product-detail]"
+# Browser Configuration
+browser:
+  headless: true
+  timeout: 30000
+  viewport:
+    width: 1920
+    height: 1080
+  user_agent: "EthicalScraper/1.0 (+https://yourdomain.com/contact)"
+
+# Scraping Behavior
+scraping:
+  respect_robots: true
+  delay_between_requests: 2.0
+  max_concurrent_requests: 3
+  retry_attempts: 3
+  retry_delay: 5.0
+
+# Output Settings
+output:
+  format: "json"  # json, csv, xml
+  pretty_print: true
+  include_metadata: true
+  image_handling: "absolute_urls"  # absolute_urls, download_local, base64
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/scraper.log"
+  max_size_mb: 10
+  backup_count: 5
+
+# Validation Rules
+validation:
+  min_content_length: 100
+  max_content_length: 1048576  # 1MB
+  required_fields: ["title", "content_html"]
+  image_url_validation: true
