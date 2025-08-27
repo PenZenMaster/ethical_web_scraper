@@ -221,6 +221,126 @@ async def _scrape_batch(urls: List[str], selector: str, config: dict):
             
     return results
 
+@app.command()
+def wordpress(
+    urls_file: str = typer.Argument(..., help="File containing WordPress URLs to scrape (one per line)"),
+    output: Optional[str] = typer.Option("wordpress_import", "--output", "-o", help="Output filename (without extension)"),
+    config_file: Optional[str] = typer.Option("config/wordpress.yaml", "--config", "-c", help="WordPress configuration file"),
+    selector: str = typer.Option("auto", "--selector", "-s", help="CSS selector (auto = WordPress detection)"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose logging")
+):
+    """Scrape WordPress content and export as WordPress XML for import."""
+    
+    try:
+        console.print("[blue]>>> WordPress Migration Mode[/blue]")
+        
+        # Load WordPress-specific configuration
+        config_path = Path(config_file)
+        if not config_path.exists():
+            console.print(f"[red]>>> WordPress config not found: {config_file}[/red]")
+            console.print("[yellow]>>> Using default configuration[/yellow]")
+            config = load_config()
+        else:
+            config = load_config(config_file)
+            console.print(f"[green]>>> Using WordPress config: {config_file}[/green]")
+        
+        # Setup logging
+        if verbose:
+            config['logging']['level'] = 'DEBUG'
+        logger = setup_logging(config)
+        
+        # Load URLs
+        urls_path = Path(urls_file)
+        if not urls_path.exists():
+            console.print(f"[red]>>> URLs file not found: {urls_file}[/red]")
+            raise typer.Exit(1)
+            
+        with open(urls_path, 'r') as f:
+            urls = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            
+        if not urls:
+            console.print(f"[red]>>> No valid URLs found in {urls_file}[/red]")
+            raise typer.Exit(1)
+            
+        console.print(f"[blue]>>> Found {len(urls)} URLs to migrate[/blue]")
+        
+        # Initialize scraper
+        scraper = EthicalScraper(config)
+        
+        # WordPress content selectors
+        wp_selectors = config.get('wordpress', {}).get('content_selectors', [
+            "article.post", ".post-content", ".entry-content", "#content article", "main article", ".post"
+        ])
+        
+        # Scrape all URLs
+        results = []
+        for i, url in enumerate(urls):
+            console.print(f"[blue]>>> Scraping {i+1}/{len(urls)}: {url}[/blue]")
+            
+            try:
+                # Try WordPress-specific selectors if auto mode
+                current_selector = selector
+                if selector == "auto":
+                    # Try each WordPress selector until one works
+                    content = None
+                    for wp_sel in wp_selectors:
+                        try:
+                            content = asyncio.run(scraper.scrape_url(url, wp_sel))
+                            current_selector = wp_sel
+                            break
+                        except:
+                            continue
+                    
+                    if not content:
+                        console.print(f"[yellow]>>> {i+1}/{len(urls)} - No content found with WordPress selectors, using body[/yellow]")
+                        content = asyncio.run(scraper.scrape_url(url, "body"))
+                        current_selector = "body"
+                else:
+                    content = asyncio.run(scraper.scrape_url(url, selector))
+                
+                if content:
+                    results.append(content)
+                    console.print(f"[green]>>> {i+1}/{len(urls)} - Success ({len(content.content_html)} chars)[/green]")
+                else:
+                    console.print(f"[yellow]>>> {i+1}/{len(urls)} - No content[/yellow]")
+                    
+            except EWSException as e:
+                handle_exception(e)
+                console.print(f"[red]>>> {i+1}/{len(urls)} - {e.code}: {str(e)[:80]}[/red]")
+            except Exception as e:
+                console.print(f"[red]>>> {i+1}/{len(urls)} - Error: {str(e)[:80]}[/red]")
+        
+        # Export results
+        if not results:
+            console.print("[red]>>> No content successfully scraped[/red]")
+            raise typer.Exit(1)
+            
+        console.print(f"[blue]>>> Exporting {len(results)} posts to WordPress XML[/blue]")
+        
+        # Use WordPress XML format
+        exporter = ContentExporter(config)
+        output_file = exporter.export(results, format_type="wordpress_xml", filepath=output)
+        
+        console.print(f"[green]>>> WordPress XML exported: {output_file}[/green]")
+        console.print(f"[green]>>> Ready for import via WordPress Admin > Tools > Import > WordPress[/green]")
+        
+        # Show migration summary
+        table = Table(title="WordPress Migration Summary")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Total URLs", str(len(urls)))
+        table.add_row("Successfully Scraped", str(len(results)))
+        table.add_row("Success Rate", f"{len(results)/len(urls)*100:.1f}%")
+        table.add_row("Output File", str(output_file))
+        table.add_row("Import Location", "WordPress Admin > Tools > Import > WordPress")
+        
+        console.print(table)
+            
+    except Exception as e:
+        console.print(f"[red]>>> WordPress migration failed: {e}[/red]")
+        raise typer.Exit(1)
+
 def _display_summary(result):
     """Display a summary of scraped content."""
     table = Table(title="Scrape Summary")

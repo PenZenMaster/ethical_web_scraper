@@ -1,0 +1,100 @@
+# WordPress Migration Configuration
+# Optimized for external WordPress sites to local WordPress import
+
+browser:
+  headless: true
+  timeout: 45000  # Longer timeout for WordPress sites
+  viewport:
+    width: 1920
+    height: 1080
+  user_agent: 'WordPressMigrator/1.0 (+https://yourdomain.com/contact)'
+
+scraping:
+  respect_robots: true
+  delay_between_requests: 3.0  # Be extra respectful
+  max_concurrent_requests: 2   # Conservative for external sites
+  max_requests_per_domain_per_minute: 15  # Reduced rate limit
+  retry_attempts: 3
+  retry_delay: 8.0
+
+# WordPress-specific content extraction
+wordpress:
+  # Common WordPress selectors (tried in order of preference)
+  content_selectors:
+    - "article.post"           # Most common
+    - ".post-content"          # Theme specific
+    - ".entry-content"         # Standard WP
+    - "#content article"       # Fallback
+    - "main article"           # Modern themes
+    - ".post"                  # Generic
+  
+  # Metadata extraction selectors
+  title_selectors:
+    - "h1.entry-title"
+    - "h1.post-title" 
+    - ".post-title h1"
+    - "article h1"
+    - "h1"
+  
+  date_selectors:
+    - ".entry-date"
+    - ".post-date"
+    - "time[datetime]"
+    - ".published"
+  
+  author_selectors:
+    - ".author-name"
+    - ".entry-author"
+    - ".post-author"
+    - "rel='author'"
+  
+  category_selectors:
+    - ".entry-category"
+    - ".post-categories"
+    - ".categories a"
+  
+  tag_selectors:
+    - ".entry-tags"
+    - ".post-tags"
+    - ".tags a"
+  
+  # Content to exclude from import
+  exclude_selectors:
+    - ".comments"
+    - ".comment-section"
+    - ".sidebar"
+    - ".navigation"
+    - ".breadcrumb"
+    - ".social-share"
+    - ".related-posts"
+
+output:
+  format: 'wordpress_xml'  # Special WordPress format
+  pretty_print: true
+  include_metadata: true
+  image_handling: 'download_and_rehost'  # Download images for rehosting
+  
+  # WordPress-specific output settings
+  wordpress_settings:
+    post_status: 'draft'      # Import as drafts for review
+    post_type: 'post'         # Default to posts
+    author_id: 1              # Assign to admin user
+    enable_comments: false    # Disable comments on imported posts
+    
+logging:
+  level: 'INFO'
+  file: 'logs/wordpress_migration.log'
+  max_size_mb: 20
+  backup_count: 10
+
+validation:
+  min_content_length: 200    # WordPress posts should be substantial
+  max_content_length: 2097152  # 2MB max
+  required_fields: ['title', 'content_html']
+  
+  # WordPress-specific validation
+  wordpress_validation:
+    require_title: true
+    require_content: true
+    min_word_count: 50
+    max_word_count: 10000

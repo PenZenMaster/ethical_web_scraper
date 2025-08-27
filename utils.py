@@ -212,7 +212,11 @@ def extract_content(html: str, selector: str, base_url: str = "") -> tuple[str, 
     Raises:
         ValueError: If selector not found in HTML
     """
-    soup = BeautifulSoup(html, "lxml")
+    # Try lxml parser first, fallback to html.parser if not available
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except:
+        soup = BeautifulSoup(html, "html.parser")
     section = soup.select_one(selector)
     if not section:
         raise ValueError(f"No element found for selector: {selector}")

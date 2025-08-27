@@ -1,0 +1,11 @@
+# Sample WordPress URLs for migration testing
+# Add your source WordPress site URLs here (one per line)
+# Comments starting with # are ignored
+
+# Example WordPress blog posts:
+https://rankrocket.co/blog/example-post-1/
+https://rankrocket.co/blog/example-post-2/
+
+# You can also add external WordPress sites:
+# https://external-wp-site.com/post-1/
+# https://external-wp-site.com/post-2/

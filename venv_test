@@ -1,0 +1,16 @@
+{
+  "title": "Example Domain",
+  "slug": "example-domain",
+  "source_url": "https://example.com",
+  "content_html": "<body>\n<div>\n<h1>Example Domain</h1>\n<p>This domain is for use in illustrative examples in documents. You may use this\n    domain in literature without prior coordination or asking for permission.</p>\n<p><a href=\"https://www.iana.org/domains/example\">More information...</a></p>\n</div>\n</body>",
+  "images": [],
+  "scraped_at": "2025-08-27T14:55:09.209027Z",
+  "metadata": {
+    "title": "Example Domain",
+    "url": "https://example.com/",
+    "selector": "body",
+    "scrape_duration": 6.21,
+    "image_count": 0,
+    "content_length": 293
+  }
+}
