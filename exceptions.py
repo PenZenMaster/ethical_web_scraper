@@ -359,6 +359,33 @@ class ConfigurationError(EWSException):
         self.section = section
 
 
+class RateLimitException(EWSException):
+    """
+    Rate limiting errors (EWS006).
+    
+    Used when domain-level or request-level rate limits
+    are exceeded to prevent overwhelming servers.
+    """
+    
+    def __init__(self, message: str, domain: Optional[str] = None, current_rate: Optional[int] = None, **kwargs):
+        context = kwargs.pop('context', {})
+        context.update({
+            'domain': domain,
+            'current_rate': current_rate,
+            'error_type': 'rate_limit_exceeded'
+        })
+        
+        super().__init__(
+            code="EWS006",
+            message=message,
+            recovery_action="Wait before making additional requests or reduce scraping frequency",
+            context=context,
+            **kwargs
+        )
+        self.domain = domain
+        self.current_rate = current_rate
+
+
 # Exception mapping for error code lookup
 ERROR_CODE_MAP = {
     "EWS001": NetworkException,
@@ -366,6 +393,7 @@ ERROR_CODE_MAP = {
     "EWS003": SelectorException,
     "EWS004": ValidationException,
     "EWS005": RobotsException,
+    "EWS006": RateLimitException,
     "EWS_CONFIG": ConfigurationError
 }
 

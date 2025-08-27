@@ -12,6 +12,7 @@ scraping:
   respect_robots: true
   delay_between_requests: 2.0
   max_concurrent_requests: 3
+  max_requests_per_domain_per_minute: 20
   retry_attempts: 3
   retry_delay: 5.0
 

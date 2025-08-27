@@ -22,7 +22,7 @@ Comments:
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse, urljoin, urlunparse
 from urllib.robotparser import RobotFileParser
 from datetime import datetime
@@ -36,7 +36,7 @@ from utils import (
 # Import centralized exceptions
 from exceptions import (
     NetworkException, RenderException, SelectorException,
-    ValidationException, RobotsException, ConfigurationError,
+    ValidationException, RobotsException, RateLimitException, ConfigurationError,
     handle_exception
 )
 
@@ -66,19 +66,27 @@ class EthicalScraper:
     and content extraction with proper error handling.
     """
     
-    def __init__(self, config_path: str = "config/default.yaml"):
+    def __init__(self, config: Union[str, Dict[str, Any]] = "config/default.yaml"):
         """
         Initialize the ethical scraper with configuration.
         
         Args:
-            config_path: Path to configuration file
+            config: Either path to configuration file or config dictionary
         """
         from utils import load_config, setup_logging, get_environment_config, merge_configs
         
-        # Load and merge configurations
-        base_config = load_config(config_path)
-        env_config = get_environment_config()
-        self.config = merge_configs(base_config, env_config)
+        # Handle both config path and config dict
+        if isinstance(config, str):
+            # Load and merge configurations
+            base_config = load_config(config)
+            env_config = get_environment_config()
+            self.config = merge_configs(base_config, env_config)
+        elif isinstance(config, dict):
+            # Use provided config dict, merge with environment
+            env_config = get_environment_config()
+            self.config = merge_configs(config, env_config)
+        else:
+            raise TypeError("config must be either a string path or dictionary")
         
         # Setup logging
         self.logger = setup_logging(self.config)
@@ -102,7 +110,12 @@ class EthicalScraper:
         # Robot cache for performance
         self._robots_cache: Dict[str, RobotFileParser] = {}
         
+        # Ethical tracking for domain-level rate limiting
+        self._domain_request_history: Dict[str, List[float]] = {}
+        self._max_requests_per_domain_per_minute = self.scraping_config.get('max_requests_per_domain_per_minute', 20)
+        
         self.logger.info(f"EthicalScraper initialized - Robots respect: {self.respect_robots}")
+        self.logger.info(f"Rate limiting - Max requests per domain per minute: {self._max_requests_per_domain_per_minute}")
 
     def validate_url(self, url: str) -> bool:
         """
@@ -203,6 +216,47 @@ class EthicalScraper:
             # If we can't check robots.txt, err on the side of caution but allow
             return True
 
+    async def check_domain_rate_limit(self, url: str) -> bool:
+        """
+        Check and enforce domain-level rate limiting to prevent overwhelming servers.
+        
+        Args:
+            url: URL to check for rate limiting
+            
+        Returns:
+            True if request is allowed, False if rate limited
+            
+        Raises:
+            RateLimitException: If domain rate limit is exceeded
+        """
+        parsed = urlparse(url)
+        domain = parsed.netloc
+        current_time = time.time()
+        
+        # Clean up old requests (older than 1 minute)
+        if domain in self._domain_request_history:
+            self._domain_request_history[domain] = [
+                req_time for req_time in self._domain_request_history[domain]
+                if current_time - req_time < 60  # Keep only last minute
+            ]
+        else:
+            self._domain_request_history[domain] = []
+        
+        # Check if we're exceeding rate limit
+        recent_requests = len(self._domain_request_history[domain])
+        if recent_requests >= self._max_requests_per_domain_per_minute:
+            exc = RateLimitException(
+                f"Rate limit exceeded for domain {domain}: {recent_requests} requests in last minute (max: {self._max_requests_per_domain_per_minute})",
+                url=url, domain=domain, current_rate=recent_requests
+            )
+            handle_exception(exc, self.logger)
+        
+        # Record this request
+        self._domain_request_history[domain].append(current_time)
+        
+        self.logger.debug(f"Domain rate check passed - {domain}: {recent_requests + 1}/{self._max_requests_per_domain_per_minute} requests in last minute")
+        return True
+
     def validate_content(self, content: ScrapedContent) -> bool:
         """
         Validate scraped content against configuration rules.
@@ -285,7 +339,10 @@ class EthicalScraper:
             # Step 2: Check robots.txt
             await self.validate_robots_txt(url)
             
-            # Step 3: Scrape content using browser
+            # Step 3: Check domain rate limiting
+            await self.check_domain_rate_limit(url)
+            
+            # Step 4: Scrape content using browser
             async with BrowserManager(self.config) as browser:
                 # Get page with optional wait_for selector
                 wait_for = kwargs.get('wait_for')

@@ -1,6 +1,6 @@
 # Claude Code – Project Playbook: EWS-Project-Plan
 
-> Repo nickname: **EWS** · Purpose: Execute the Ethical Web Scraper Project Plan with reliable session handoffs and checkpoints for defensive security research.
+> Repo nickname: **AWG** · Purpose: Execute the AWG Project Plan (city/service cloud stacks + static site generator) with reliable session handoffs and checkpoints.
 
 ---
 
@@ -41,7 +41,7 @@ When asked for changes in this repo:
    * **Today’s plan** (1–3 concrete steps)
 3. Confirm Git branch/status and whether working tree is clean.
 
-### 💾 `EWS checkpoint`
+### 💾 `AWG checkpoint`
 
 **Goal:** Capture state at any time (especially near usage limits) so the next session can resume seamlessly.
 **Claude should:**
@@ -59,38 +59,36 @@ When asked for changes in this repo:
    * **Git status** (branch, last commit hash, pushed: yes/no)
 3. Update live docs:
 
-   * Append any **Design Variations & Rationale** to `docs/EWS-Project-Plan.md`.
+   * Append any **Design Variations & Rationale** to `docs/AWG-Project-Plan.md`.
    * Update `docs/projectStatus.md` (Completed / In‑Progress / Deferred + Next items).
 4. `git add -A && git commit -m "chore(checkpoint): YYYY-MM-DD_HHMM – <short summary>" && git push`
 5. Reply in chat with a 1‑paragraph summary + a checklist of next steps.
 
-> **Trigger words**: "checkpoint now", "prepare for rollover", "juice check", "save state" → run **EWS checkpoint** immediately.
+> **Trigger words**: “checkpoint now”, “prepare for rollover”, “juice check”, “save state” → run **AWG checkpoint** immediately.
 
-### ⏹️ `EWS shutdown`
+### ⏹️ `AWG shutdown`
 
 **Goal:** End a session cleanly and **always** checkpoint.
 **Claude should:**
 
-1. Run **EWS checkpoint** (mandatory).
+1. Run **AWG checkpoint** (mandatory).
 2. Ensure all changes are pushed; echo branch, commit hash, and tag if created.
 3. Post “Shutdown complete” with **3 bullets** for the next session.
 
 ---
 
-## 2) Project Guardrails (EWS specifics)
+## 2) Project Guardrails (AWG specifics)
 
-* **Stack**: Python 3.11+, Playwright, BeautifulSoup4, Pydantic, Typer, YAML configs.
-* **Purpose**: Ethical web scraping for defensive security research with partner permission.
-* **Ethics**: Respect robots.txt by default, implement rate limiting, use proper user-agent identification.
-* **Error Handling**: Structured exception hierarchy (EWS001-EWS005) with retry logic.
-* **Output**: JSON format with absolute image URLs, configurable to CSV/XML.
-* **Performance**: Max 5 concurrent requests, 30s timeout per page, <500MB memory per scrape.
+* **Stack**: Python 3.9+, Jinja2, YAML configs; optional PyQt6 UI; AWS S3 deploy via Boto3 (if used).
+* **WYSIWYG truth**: If a UI is present, generation must reflect **current UI state**.
+* **Idempotency**: Safe reruns (dedupe by slug/ID, skip already‑processed).
+* **Performance**: Keep templates lean; avoid blocking calls; stream large I/O.
 
 ---
 
 ## 3) Files & Paths (authoritative)
 
-* **Plan**: `docs/EWS-Project-Plan.md` (source of truth + Design Variations section)
+* **Plan**: `docs/AWG-Project-Plan.md` (source of truth + Design Variations section)
 * **Status**: `docs/projectStatus.md` (sprint state + next actions)
 * **Checkpoints**: `docs/archive/checkpoints/` (one markdown per checkpoint)
 
@@ -111,14 +109,17 @@ ruff --fix . && black . && mypy . && pytest -q
 * CLIs default to safe behavior (dry‑run when destructive).
 * `pathlib` for filesystem ops; write OS‑portable code.
 
-### Playwright Browser Tests
+### WordPress/PHP (if present)
 
 ```bash
-pytest tests/integration/ -v --browser=chromium
+phpcs --standard=phpcs.xml.dist
 ```
 
-* Test browser automation, JavaScript rendering, selector validation.
-* Verify robots.txt compliance and rate limiting behavior.
+* Sanitize inputs, escape outputs, nonce + capability checks; i18n wrappers.
+
+### Frontend
+
+* Accessible markup; non‑blocking scripts; defer where possible.
 
 ---
 
@@ -126,9 +127,8 @@ pytest tests/integration/ -v --browser=chromium
 
 Before tagging a release:
 
-* Remove debug prints and traces from scraper modules.
-* Re‑run quality gate and integration tests; verify ethical compliance.
-* Test with real website scenarios and validate JSON output schema.
+* Remove debug prints and traces from Python/JS/HTML generators.
+* Re‑run quality gate and a smoke build; verify output site loads with correct interlinks.
 
 ---
 
@@ -166,15 +166,15 @@ DELETE RULE → <Section Anchor>
 
 ## 7) Quick Prompts
 
-* **Start session**: `EWS start`
-* **Checkpoint now**: `EWS checkpoint — summarize, commit, push`
-* **End session**: `EWS shutdown`
+* **Start session**: `AWG start`
+* **Checkpoint now**: `AWG checkpoint — summarize, commit, push`
+* **End session**: `AWG shutdown`
 * **Override rule**: `EDIT RULE → 4) Code Quality Gates …`
 
 ---
 
 ## 8) Notes on Continuity & Limits
 
-* Use **EWS checkpoint** whenever you're nearing your daily usage cap or switching tasks.
-* A checkpoint is **mandatory** for every **EWS shutdown**.
-* Next session resumes with **EWS start** which reads the last checkpoint and aligns the plan.
+* Use **AWG checkpoint** whenever you’re nearing your daily usage cap or switching tasks.
+* A checkpoint is **mandatory** for every **AWG shutdown**.
+* Next session resumes with **AWG start** which reads the last checkpoint and aligns the plan.

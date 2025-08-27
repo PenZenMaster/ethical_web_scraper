@@ -1,0 +1,3 @@
+# Test URLs for batch scraping
+https://httpbin.org/html
+https://httpbin.org/json
