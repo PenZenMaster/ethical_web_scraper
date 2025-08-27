@@ -27,14 +27,12 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 import yaml
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from urllib.parse import urljoin
 from slugify import slugify
 
-
-class ConfigurationError(Exception):
-    """Raised when configuration loading or validation fails"""
-    pass
+# Import centralized exceptions
+from exceptions import ConfigurationError
 
 
 def load_config(config_path: str = "config/default.yaml") -> Dict[str, Any]:
@@ -220,12 +218,20 @@ def extract_content(html: str, selector: str, base_url: str = "") -> tuple[str, 
         raise ValueError(f"No element found for selector: {selector}")
     
     images = []
-    for img in section.find_all("img"):
-        src = img.get("src")
-        if src:
-            abs_src = urljoin(base_url, src) if base_url else src
-            images.append(abs_src)
-            img["src"] = abs_src
+    # Find all img tags - they should be Tag elements
+    for img_element in section.find_all("img"):
+        # Ensure we're working with a Tag element (not NavigableString)
+        if isinstance(img_element, Tag):
+            # Use attrs dictionary directly for type safety
+            src_value = img_element.attrs.get("src")
+            if src_value:
+                # Handle case where src might be a list (though rare)
+                src = src_value[0] if isinstance(src_value, list) else src_value
+                if isinstance(src, str):
+                    abs_src = urljoin(base_url, src) if base_url else src
+                    images.append(abs_src)
+                    # Set the absolute URL back to the element
+                    img_element.attrs["src"] = abs_src
 
     return str(section), images
 
