@@ -6,6 +6,7 @@ A production-ready web scraping tool designed for ethical content migration and 
 
 - **JavaScript-Rendered Scraping**: Full Playwright browser automation with dynamic content support
 - **WordPress Migration**: Native WordPress XML export for seamless content migration
+- **Image Management**: Download, organize, and rehost images with multiple handling modes
 - **Multi-Format Export**: JSON, CSV, XML, and WordPress XML formats
 - **Ethical Compliance**: Built-in robots.txt validation and rate limiting
 - **Batch Processing**: Handle multiple URLs with progress tracking and error recovery
@@ -155,6 +156,26 @@ ethical_web_scraper/
 - WordPress-specific selectors and timeouts  
 - Migration-optimized settings
 - Content filtering for clean imports
+- Image downloading and rehosting for migration
+
+### Image Management Settings
+Available in both configurations:
+```yaml
+image_settings:
+  download_directory: "images"        # Local download directory
+  organize_by_domain: true           # Organize by source domain
+  max_image_size: "5MB"             # Maximum file size
+  allowed_formats: ["jpg", "png"]    # Allowed image formats
+  optimize: false                    # Image optimization
+  quality: 85                        # JPEG quality (1-100)
+  wordpress_upload: false            # WordPress media integration
+```
+
+**Image Handling Modes**:
+- `absolute_urls`: Convert relative URLs to absolute (default)
+- `download_local`: Download images to local directory
+- `download_and_rehost`: Download for rehosting (WordPress mode)
+- `base64`: Embed small images as base64 (planned)
 
 ### Custom Configuration
 ```bash

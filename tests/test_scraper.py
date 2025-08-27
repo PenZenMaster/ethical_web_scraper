@@ -470,3 +470,122 @@ class TestErrorRecovery:
         # New request should succeed
         result = await scraper.check_domain_rate_limit("https://example.com/test3")
         assert result is True
+
+
+class TestImageManagement:
+    """Test image management integration."""
+    
+    def test_scraped_content_with_image_info(self):
+        """Test ScrapedContent with image_info field."""
+        image_info = {
+            "https://example.com/image.jpg": {
+                "original_url": "https://example.com/image.jpg",
+                "local_path": "/images/example.com/image.jpg",
+                "downloaded": True,
+                "file_size": 12345
+            }
+        }
+        
+        content = ScrapedContent(
+            title="Test Title",
+            slug="test-title",
+            source_url="https://example.com",
+            content_html="<h1>Test</h1>",
+            images=["https://example.com/image.jpg"],
+            scraped_at="2025-08-27T00:00:00Z",
+            image_info=image_info
+        )
+        
+        assert content.image_info == image_info
+        assert "https://example.com/image.jpg" in content.image_info
+        assert content.image_info["https://example.com/image.jpg"]["downloaded"] is True
+
+    def test_extract_alt_texts(self, test_config):
+        """Test alt text extraction from HTML."""
+        scraper = EthicalScraper(test_config)
+        
+        html_content = '''
+        <html>
+        <body>
+            <img src="https://example.com/image1.jpg" alt="Test Image 1">
+            <img src="/relative/image2.png" alt="Test Image 2">
+            <img src="https://example.com/image3.gif">  <!-- No alt -->
+        </body>
+        </html>
+        '''
+        
+        image_urls = [
+            "https://example.com/image1.jpg",
+            "https://example.com/relative/image2.png", 
+            "https://example.com/image3.gif"
+        ]
+        
+        alt_texts = scraper._extract_alt_texts(html_content, image_urls)
+        
+        assert "https://example.com/image1.jpg" in alt_texts
+        assert alt_texts["https://example.com/image1.jpg"] == "Test Image 1"
+        assert "https://example.com/image3.gif" not in alt_texts  # No alt text
+
+    @pytest.mark.asyncio
+    @patch('scraper.BrowserManager')
+    @patch('scraper.extract_content')
+    async def test_scrape_with_image_processing(self, mock_extract_content, mock_browser_manager, test_config):
+        """Test complete scrape with image processing."""
+        # Configure for image downloading
+        test_config['output']['image_handling'] = 'download_local'
+        test_config['image_settings'] = {
+            'download_directory': 'test_images',
+            'organize_by_domain': True
+        }
+        
+        scraper = EthicalScraper(test_config)
+        
+        # Mock browser
+        mock_page = AsyncMock()
+        mock_browser = AsyncMock()
+        mock_browser.get_page.return_value = mock_page
+        mock_browser.render_content.return_value = '<html><img src="/test.jpg" alt="Test"></html>'
+        mock_browser.get_page_metadata.return_value = {'title': 'Test Page'}
+        mock_browser_manager.return_value.__aenter__.return_value = mock_browser
+        
+        # Mock content extraction
+        mock_extract_content.return_value = (
+            '<p>Test content <img src="https://example.com/test.jpg" alt="Test"></p>',
+            ['https://example.com/test.jpg']
+        )
+        
+        # Mock image manager to avoid actual downloads in tests
+        with patch.object(scraper.image_manager, 'process_images') as mock_process_images:
+            with patch.object(scraper.image_manager, 'update_html_content') as mock_update_html:
+                with patch.object(scraper.image_manager, 'get_statistics') as mock_get_stats:
+                    # Configure mocks
+                    mock_process_images.return_value = {
+                        'https://example.com/test.jpg': MagicMock(
+                            to_dict=MagicMock(return_value={
+                                'original_url': 'https://example.com/test.jpg',
+                                'downloaded': True,
+                                'local_path': 'test_images/example.com/test.jpg'
+                            })
+                        )
+                    }
+                    mock_update_html.return_value = '<p>Test content <img src="test_images/example.com/test.jpg" alt="Test"></p>'
+                    mock_get_stats.return_value = {
+                        'images_attempted': 1,
+                        'images_successful': 1,
+                        'handling_mode': 'download_local'
+                    }
+                    
+                    # Run scrape
+                    result = await scraper.scrape_url("https://example.com", "body")
+                    
+                    # Assertions
+                    assert result.title == "Test Page"
+                    assert result.images == ['https://example.com/test.jpg']
+                    assert result.image_info is not None
+                    assert 'https://example.com/test.jpg' in result.image_info
+                    assert result.metadata['image_processing']['handling_mode'] == 'download_local'
+                    
+                    # Verify image manager was called
+                    mock_process_images.assert_called_once()
+                    mock_update_html.assert_called_once()
+                    mock_get_stats.assert_called_once()

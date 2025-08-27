@@ -28,23 +28,59 @@
 
 ---
 
-## 📋 Next Phase: Sprint 1.3 - Advanced Features (v1.1 Development)
+## 📋 Next Phase: Sprint 1.3 - Code Architecture Refactoring (v1.1 Development)
 
-**Development Branch**: `sprint-1.3-advanced-features`  
-**Target Version**: v1.1 - Advanced Features  
+**Development Branch**: `sprint-1.3-architecture-refactor`  
+**Target Version**: v1.1 - Modular Architecture  
 **Protected Stable**: v1.00 tagged and released
 
-### Ready to Start  
+### 🏗️ PRIORITY: Code Modularization (EWS-013 through EWS-016)
+**Status**: Scheduled for immediate implementation  
+**Objective**: Improve separation of concerns and maintainability
+
+#### Phase 1: Extract Core Validators (EWS-013)
+- **EWS-013a**: Create `validators/` module structure
+- **EWS-013b**: Extract URL validation to `validators/url_validator.py`
+- **EWS-013c**: Extract robots.txt logic to `validators/robots_validator.py`
+- **EWS-013d**: Extract content validation to `validators/content_validator.py`
+- **EWS-013e**: Update `scraper.py` to use new validator modules
+
+#### Phase 2: Separate Rate Limiting (EWS-014)
+- **EWS-014a**: Create `rate_limiting/` module structure
+- **EWS-014b**: Extract domain limiting to `rate_limiting/domain_limiter.py`
+- **EWS-014c**: Extract request tracking to `rate_limiting/request_tracker.py`
+- **EWS-014d**: Update scraper integration with new rate limiting modules
+
+#### Phase 3: Image Processing Separation (EWS-015)
+- **EWS-015a**: Create `image_processing/` module structure
+- **EWS-015b**: Extract core download to `image_processing/downloader.py`
+- **EWS-015c**: Extract storage logic to `image_processing/storage_manager.py`
+- **EWS-015d**: Extract HTML processing to `image_processing/html_processor.py`
+- **EWS-015e**: Create format handlers in `image_processing/format_handlers/`
+- **EWS-015f**: Refactor `image_manager.py` to orchestrate new modules
+
+#### Phase 4: Export Format Handlers (EWS-016)
+- **EWS-016a**: Create `exporters/` module structure with base class
+- **EWS-016b**: Separate JSON export to `exporters/json_exporter.py`
+- **EWS-016c**: Separate CSV export to `exporters/csv_exporter.py`
+- **EWS-016d**: Separate XML export to `exporters/xml_exporter.py`
+- **EWS-016e**: Separate WordPress export to `exporters/wordpress_exporter.py`
+- **EWS-016f**: Refactor `exporter.py` to coordinate new format handlers
+
+### ✅ Recently Completed
+- **EWS-010**: ✅ COMPLETED - Image downloading and local storage capabilities
+
+### 🔄 Deferred to Sprint 1.4
 - **EWS-009**: Implement concurrent scraping with queue management
-- **EWS-010**: Add image downloading and local storage capabilities
 - **EWS-011**: Create web dashboard for monitoring and management  
 - **EWS-012**: Implement plugin system for custom extractors
 
-### Technical Priorities
-- Performance optimization for large-scale scraping
-- Advanced browser automation features
-- Real-time monitoring and analytics
-- Plugin architecture for extensibility
+### Technical Priorities (Updated)
+- **PRIMARY**: Modular architecture for better maintainability
+- **SECONDARY**: Performance optimization for large-scale scraping
+- **TERTIARY**: Advanced browser automation features
+- **FUTURE**: Real-time monitoring and analytics
+- **FUTURE**: Plugin architecture for extensibility
 
 ---
 
@@ -156,11 +192,11 @@
 
 ## 🔄 Next Session Priorities
 
-1. **Sprint 1.3 Planning**: Define advanced features and performance requirements
-2. **Performance Testing**: Benchmark current system with realistic workloads
-3. **Advanced Features**: Begin concurrent processing architecture  
-4. **Dashboard Planning**: Design web-based monitoring and management interface
-5. **Documentation**: Create comprehensive user guide and API reference
+1. **EWS-013**: Begin Phase 1 modularization - Extract core validators
+2. **Architecture Review**: Assess current module boundaries and dependencies  
+3. **Testing Strategy**: Plan test migration for refactored modules
+4. **Branch Creation**: Create `sprint-1.3-architecture-refactor` branch
+5. **Validator Extraction**: Start with URL, robots.txt, and content validators
 
 ---
 
@@ -174,6 +210,8 @@
 - **Modular Design**: Clean separation between scraping, export, and CLI layers
 
 ### Recent Technical Enhancements
+- **EWS-010 Image Management**: Complete image downloading and processing system
+- **Modular Architecture Planning**: Identified need for separation of concerns
 - Domain-level rate limiting to prevent server overwhelming
 - Enhanced exception system with structured error codes and context
 - Multi-format export with schema validation and error handling
@@ -181,6 +219,16 @@
 - Comprehensive unit test infrastructure with fixtures and mocks
 
 ## 🏆 Version History
+
+### v1.01 - EWS-010 Image Management (2025-08-27)
+- ✅ **Image Management System**: Complete ImageManager class with download capabilities
+- ✅ **Multiple Processing Modes**: absolute_urls, download_local, download_and_rehost
+- ✅ **WordPress Integration**: Image downloading for migration workflows
+- ✅ **Storage Organization**: Domain-organized directories with safe filenames
+- ✅ **Alt Text Preservation**: Maintains accessibility information during processing
+- ✅ **Comprehensive Testing**: Full test suite for image management functionality
+- ✅ **Configuration Enhancement**: Extended image_settings in both config files
+- ✅ **Documentation Updates**: Complete feature documentation in README
 
 ### v1.00 - Production Release (2025-08-27)
 - ✅ **WordPress Migration System**: Native XML export with direct import

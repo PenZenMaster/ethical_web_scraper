@@ -21,7 +21,19 @@ output:
   format: "json"  # json, csv, xml
   pretty_print: true
   include_metadata: true
-  image_handling: "absolute_urls"  # absolute_urls, download_local, base64
+  image_handling: "absolute_urls"  # absolute_urls, download_local, download_and_rehost, base64
+
+# Image Management Settings
+image_settings:
+  download_directory: "images"
+  organize_by_domain: true
+  max_image_size: "5MB"
+  allowed_formats: ["jpg", "jpeg", "png", "webp", "gif", "svg"]
+  create_thumbnails: false
+  optimize: false
+  quality: 85
+  timeout: 30
+  wordpress_upload: false
 
 # Logging
 logging:

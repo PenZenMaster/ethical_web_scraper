@@ -29,6 +29,7 @@ from datetime import datetime
 import time
 
 from browser import BrowserManager
+from image_manager import ImageManager
 from utils import (
     extract_content, get_slug_from_title, validate_url, 
     get_timestamp
@@ -51,6 +52,7 @@ class ScrapedContent:
     images: List[str]
     scraped_at: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    image_info: Optional[Dict[str, Any]] = field(default_factory=dict)
     
     def __post_init__(self):
         """Validate required fields after initialization."""
@@ -114,8 +116,46 @@ class EthicalScraper:
         self._domain_request_history: Dict[str, List[float]] = {}
         self._max_requests_per_domain_per_minute = self.scraping_config.get('max_requests_per_domain_per_minute', 20)
         
+        # Initialize image manager
+        self.image_manager = ImageManager(self.config)
+        
         self.logger.info(f"EthicalScraper initialized - Robots respect: {self.respect_robots}")
         self.logger.info(f"Rate limiting - Max requests per domain per minute: {self._max_requests_per_domain_per_minute}")
+        self.logger.info(f"Image handling mode: {self.image_manager.handling_mode}")
+
+    def _extract_alt_texts(self, html_content: str, image_urls: List[str]) -> Dict[str, str]:
+        """
+        Extract alt text for images from HTML content.
+        
+        Args:
+            html_content: Full HTML content of the page
+            image_urls: List of image URLs found in content
+            
+        Returns:
+            Dict mapping image URLs to alt text
+        """
+        from bs4 import BeautifulSoup
+        alt_texts = {}
+        
+        try:
+            # Parse HTML to find img tags
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            for img_tag in soup.find_all('img'):
+                src = img_tag.get('src')
+                alt = img_tag.get('alt')
+                
+                if src and alt:
+                    # Try to match with processed URLs (absolute URLs)
+                    for url in image_urls:
+                        if src in url or url.endswith(src.split('/')[-1]):
+                            alt_texts[url] = alt
+                            break
+                            
+        except Exception as e:
+            self.logger.debug(f"Failed to extract alt texts: {e}")
+            
+        return alt_texts
 
     def validate_url(self, url: str) -> bool:
         """
@@ -360,12 +400,30 @@ class EthicalScraper:
                         exc = SelectorException(str(e), url=url, selector=selector)
                         handle_exception(exc, self.logger)
                     
+                    # Process images using ImageManager
+                    image_mapping = {}
+                    processed_content_html = content_html
+                    image_stats = {}
+                    
+                    if images:
+                        # Create alt text mapping (could be extracted from original HTML)
+                        alt_texts = self._extract_alt_texts(html_content, images)
+                        
+                        # Process images according to configuration
+                        image_mapping = self.image_manager.process_images(images, alt_texts)
+                        
+                        # Update HTML content with new image URLs if needed
+                        processed_content_html = self.image_manager.update_html_content(content_html, image_mapping)
+                        
+                        # Get image processing statistics
+                        image_stats = self.image_manager.get_statistics()
+                    
                     # Create scraped content object
                     scraped_content = ScrapedContent(
                         title=page_metadata.get('title', 'Untitled'),
                         slug=get_slug_from_title(page_metadata.get('title', url)),
                         source_url=url,
-                        content_html=content_html,
+                        content_html=processed_content_html,
                         images=images,
                         scraped_at=get_timestamp(),
                         metadata={
@@ -373,18 +431,27 @@ class EthicalScraper:
                             'selector': selector,
                             'scrape_duration': round(time.time() - start_time, 2),
                             'image_count': len(images),
-                            'content_length': len(content_html),
+                            'content_length': len(processed_content_html),
+                            'image_processing': image_stats,
                             **kwargs.get('metadata', {})
-                        }
+                        },
+                        image_info={url: info.to_dict() for url, info in image_mapping.items()}
                     )
                     
                     # Step 4: Validate content
                     self.validate_content(scraped_content)
                     
+                    # Enhanced logging with image processing info
+                    image_summary = ""
+                    if image_stats:
+                        processed = image_stats.get('images_successful', 0)
+                        total = image_stats.get('images_attempted', 0)
+                        image_summary = f", images: {processed}/{total} processed"
+                    
                     self.logger.info(
                         f"Scrape completed: {url} "
-                        f"({len(content_html)} chars, {len(images)} images, "
-                        f"{round(time.time() - start_time, 2)}s)"
+                        f"({len(processed_content_html)} chars, {len(images)} images found"
+                        f"{image_summary}, {round(time.time() - start_time, 2)}s)"
                     )
                     
                     return scraped_content
