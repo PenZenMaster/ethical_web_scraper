@@ -1,0 +1,153 @@
+# Pre-commit configuration for Ethical Web Scraper
+# Install with: pip install pre-commit && pre-commit install
+#
+# Created: 2025-08-28
+# Author: Rank Rocket Co (C) Copyright 2025 - All Rights Reserved
+
+repos:
+  # Built-in hooks for basic checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$
+      - id: end-of-file-fixer
+        exclude: \.md$
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Python-specific hooks
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        args: [--line-length=100]
+        language_version: python3
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=100]
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: [-r, ., -f, json]
+        exclude: ^tests/
+
+  # Local hooks for project-specific checks
+  - repo: local
+    hooks:
+      # Import validation
+      - id: import-validation
+        name: Validate Core Module Imports
+        entry: python
+        language: system
+        args:
+          - -c
+          - |
+            import sys
+            modules = ['scraper', 'exporter', 'image_manager', 'validators', 'rate_limiting', 'image_processing', 'exporters']
+            failed = []
+            for module in modules:
+                try:
+                    __import__(module)
+                    print(f'✓ {module}')
+                except Exception as e:
+                    print(f'✗ {module}: {e}')
+                    failed.append(module)
+            if failed:
+                print(f'Failed imports: {failed}')
+                sys.exit(1)
+            print(f'✅ All {len(modules)} modules imported successfully')
+        files: \.(py)$
+        pass_filenames: false
+
+      # Quick unit tests
+      - id: quick-tests
+        name: Quick Unit Tests
+        entry: python
+        language: system
+        args: [-m, pytest, tests/test_exceptions.py, tests/test_utils.py, -x, --tb=short, -q]
+        files: \.(py)$
+        pass_filenames: false
+
+      # Configuration validation
+      - id: config-validation
+        name: Validate Configuration Files
+        entry: python
+        language: system
+        args:
+          - -c
+          - |
+            import yaml
+            import os
+            configs = ['config/default.yaml', 'config/wordpress.yaml']
+            for config in configs:
+                if os.path.exists(config):
+                    try:
+                        with open(config, 'r') as f:
+                            yaml.safe_load(f)
+                        print(f'✓ {config}')
+                    except Exception as e:
+                        print(f'✗ {config}: {e}')
+                        exit(1)
+            print('✅ Configuration files valid')
+        files: \.(yaml|yml)$
+        pass_filenames: false
+
+      # Check for debug prints
+      - id: no-debug-prints
+        name: Check for Debug Print Statements
+        entry: python
+        language: system
+        args:
+          - -c
+          - |
+            import re
+            import sys
+            import os
+            
+            issues_found = False
+            for root, dirs, files in os.walk('.'):
+                # Skip certain directories
+                dirs[:] = [d for d in dirs if d not in ['.git', '.venv', 'tests', '__pycache__']]
+                
+                for file in files:
+                    if file.endswith('.py'):
+                        filepath = os.path.join(root, file)
+                        try:
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                lines = f.readlines()
+                            
+                            for i, line in enumerate(lines, 1):
+                                # Look for print() not in comments or strings
+                                if 'print(' in line and not line.strip().startswith('#'):
+                                    if '# debug' not in line.lower() and '# DEBUG' not in line:
+                                        print(f'⚠️  {filepath}:{i}: {line.strip()}')
+                                        issues_found = True
+                        except:
+                            continue
+            
+            if issues_found:
+                print('\n⚠️  Found print() statements. Consider using logging instead.')
+                print('   Add "# debug" comment if intentional.')
+        files: \.(py)$
+        pass_filenames: false
+        verbose: true
+
+# Global configuration
+default_stages: [commit]
+fail_fast: false
+minimum_pre_commit_version: 2.15.0

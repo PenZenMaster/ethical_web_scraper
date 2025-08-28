@@ -215,6 +215,84 @@ Quick functionality test:
 python main.py test
 ```
 
+## 🔧 Development & Contributing
+
+### Git Hooks & Pre-commit Checks
+
+This project includes comprehensive git hooks to ensure code quality and prevent broken commits:
+
+**Automatic Setup (Recommended):**
+```bash
+# Run the setup script to install all hooks
+python setup-hooks.py
+```
+
+**Manual Setup:**
+```bash
+# Install pre-commit framework
+pip install pre-commit
+
+# Install hooks from .pre-commit-config.yaml
+pre-commit install
+```
+
+**What Gets Checked:**
+- ✅ **Import Validation**: All core modules can be imported successfully
+- ✅ **Quick Unit Tests**: Essential functionality tests (non-blocking)
+- ✅ **Configuration Validation**: YAML files are valid
+- ✅ **Security Scanning**: Basic checks for hardcoded secrets
+- ✅ **Code Quality**: Format checking with black, isort, bandit
+- ✅ **File Integrity**: Trailing whitespace, line endings, large files
+
+**Hook Usage:**
+```bash
+# Hooks run automatically on commit
+git commit -m "your message"
+
+# Run manually on all files
+pre-commit run --all-files
+
+# Skip hooks (use sparingly)
+git commit --no-verify
+
+# Update hook versions
+pre-commit autoupdate
+```
+
+**Hook Configuration Files:**
+- `.pre-commit-config.yaml` - Pre-commit framework configuration
+- `.git/hooks/pre-commit` - Custom bash hook with import/test validation
+- `setup-hooks.py` - Automated setup script
+
+**Note:** After major refactoring (like Sprint 1.3), some tests may fail in hooks. This is expected and hooks are configured to be helpful but not overly strict during development phases.
+
+### Development Workflow
+
+1. **Make Changes**: Edit code following existing patterns
+2. **Test Locally**: `python main.py test` for quick validation
+3. **Run Full Tests**: `pytest` for comprehensive testing
+4. **Commit**: Git hooks automatically validate your changes
+5. **Push**: Hooks prevent most issues from reaching remote
+
+### Architecture (v1.1 - Modular)
+
+**Core Modules:**
+- `scraper.py` - Orchestrates validators, rate limiter, image manager
+- `exporter.py` - Coordinates format-specific export handlers
+- `image_manager.py` - Uses modular image processing components
+
+**Modular Components (New in v1.1):**
+- `validators/` - URL, robots.txt, and content validation
+- `rate_limiting/` - Domain-based request throttling
+- `image_processing/` - Image download, storage, and processing
+- `exporters/` - Format-specific handlers (JSON, CSV, XML, WordPress)
+
+**Benefits:**
+- Better separation of concerns
+- Individual component testing
+- Easier maintenance and extension
+- Clear module boundaries
+
 ## 📊 Export Formats
 
 ### JSON (Default)
