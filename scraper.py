@@ -24,7 +24,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse, urljoin, urlunparse
-from urllib.robotparser import RobotFileParser
 from datetime import datetime
 import time
 
@@ -40,6 +39,10 @@ from exceptions import (
     ValidationException, RobotsException, RateLimitException, ConfigurationError,
     handle_exception
 )
+# Import validator modules
+from validators import URLValidator, RobotsValidator, ContentValidator
+# Import rate limiting modules
+from rate_limiting import DomainLimiter
 
 
 @dataclass
@@ -109,18 +112,21 @@ class EthicalScraper:
         self.max_content_length = self.validation_config.get('max_content_length', 1048576)
         self.required_fields = self.validation_config.get('required_fields', ['title', 'content_html'])
         
-        # Robot cache for performance
-        self._robots_cache: Dict[str, RobotFileParser] = {}
         
-        # Ethical tracking for domain-level rate limiting
-        self._domain_request_history: Dict[str, List[float]] = {}
-        self._max_requests_per_domain_per_minute = self.scraping_config.get('max_requests_per_domain_per_minute', 20)
         
         # Initialize image manager
         self.image_manager = ImageManager(self.config)
         
+        # Initialize validators
+        self.url_validator = URLValidator(self.config, self.logger)
+        self.robots_validator = RobotsValidator(self.config, self.logger)
+        self.content_validator = ContentValidator(self.config, self.logger)
+        
+        # Initialize rate limiter
+        self.domain_limiter = DomainLimiter(self.config, self.logger)
+        
         self.logger.info(f"EthicalScraper initialized - Robots respect: {self.respect_robots}")
-        self.logger.info(f"Rate limiting - Max requests per domain per minute: {self._max_requests_per_domain_per_minute}")
+        self.logger.info(f"Rate limiting - Max requests per domain per minute: {self.domain_limiter._max_requests_per_domain_per_minute}")
         self.logger.info(f"Image handling mode: {self.image_manager.handling_mode}")
 
     def _extract_alt_texts(self, html_content: str, image_urls: List[str]) -> Dict[str, str]:
@@ -159,7 +165,7 @@ class EthicalScraper:
 
     def validate_url(self, url: str) -> bool:
         """
-        Validate URL format and accessibility.
+        Validate URL format and accessibility using URLValidator.
         
         Args:
             url: URL to validate
@@ -170,40 +176,11 @@ class EthicalScraper:
         Raises:
             ValidationException: If URL is invalid
         """
-        if not url or not isinstance(url, str):
-            exc = ValidationException("URL must be a non-empty string", 
-                                    validation_type="url_format")
-            handle_exception(exc, self.logger)
-        
-        if not validate_url(url):
-            exc = ValidationException(f"Invalid URL format: {url}", url=url, 
-                                    validation_type="url_format")
-            handle_exception(exc, self.logger)
-        
-        try:
-            parsed = urlparse(url)
-            if not parsed.netloc:
-                exc = ValidationException(f"URL missing domain: {url}", url=url,
-                                        validation_type="url_format")
-                handle_exception(exc, self.logger)
-            
-            if parsed.scheme not in ['http', 'https']:
-                exc = ValidationException(f"Unsupported URL scheme: {parsed.scheme}", 
-                                        url=url, validation_type="url_scheme")
-                handle_exception(exc, self.logger)
-                
-        except ValidationException:
-            raise
-        except Exception as e:
-            exc = ValidationException(f"URL validation error: {e}", url=url,
-                                    validation_type="url_parsing")
-            handle_exception(exc, self.logger)
-        
-        return True
+        return self.url_validator.validate(url)
 
     async def validate_robots_txt(self, url: str) -> bool:
         """
-        Check if URL is allowed by robots.txt.
+        Check if URL is allowed by robots.txt using RobotsValidator.
         
         Args:
             url: URL to check
@@ -214,92 +191,26 @@ class EthicalScraper:
         Raises:
             RobotsException: If robots.txt disallows the URL
         """
-        if not self.respect_robots:
-            return True
-        
-        try:
-            parsed = urlparse(url)
-            robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-            
-            # Check cache first
-            if robots_url in self._robots_cache:
-                rp = self._robots_cache[robots_url]
-            else:
-                # Download and parse robots.txt
-                rp = RobotFileParser()
-                rp.set_url(robots_url)
-                try:
-                    rp.read()
-                    self._robots_cache[robots_url] = rp
-                    self.logger.debug(f"Robots.txt loaded for {parsed.netloc}")
-                except Exception as e:
-                    # If robots.txt doesn't exist or can't be read, allow scraping
-                    self.logger.debug(f"No robots.txt found for {parsed.netloc}: {e}")
-                    return True
-            
-            # Check if URL is allowed
-            can_fetch = rp.can_fetch(self.user_agent, url)
-            if not can_fetch:
-                exc = RobotsException(
-                    f"Robots.txt disallows scraping of {url} for user-agent {self.user_agent}",
-                    url=url, user_agent=self.user_agent
-                )
-                handle_exception(exc, self.logger)
-            
-            self.logger.debug(f"Robots.txt allows scraping: {url}")
-            return True
-            
-        except RobotsException:
-            raise
-        except Exception as e:
-            self.logger.warning(f"Error checking robots.txt for {url}: {e}")
-            # If we can't check robots.txt, err on the side of caution but allow
-            return True
+        return await self.robots_validator.validate(url)
 
     async def check_domain_rate_limit(self, url: str) -> bool:
         """
-        Check and enforce domain-level rate limiting to prevent overwhelming servers.
+        Check and enforce domain-level rate limiting using DomainLimiter.
         
         Args:
             url: URL to check for rate limiting
             
         Returns:
-            True if request is allowed, False if rate limited
+            True if request is allowed
             
         Raises:
             RateLimitException: If domain rate limit is exceeded
         """
-        parsed = urlparse(url)
-        domain = parsed.netloc
-        current_time = time.time()
-        
-        # Clean up old requests (older than 1 minute)
-        if domain in self._domain_request_history:
-            self._domain_request_history[domain] = [
-                req_time for req_time in self._domain_request_history[domain]
-                if current_time - req_time < 60  # Keep only last minute
-            ]
-        else:
-            self._domain_request_history[domain] = []
-        
-        # Check if we're exceeding rate limit
-        recent_requests = len(self._domain_request_history[domain])
-        if recent_requests >= self._max_requests_per_domain_per_minute:
-            exc = RateLimitException(
-                f"Rate limit exceeded for domain {domain}: {recent_requests} requests in last minute (max: {self._max_requests_per_domain_per_minute})",
-                url=url, domain=domain, current_rate=recent_requests
-            )
-            handle_exception(exc, self.logger)
-        
-        # Record this request
-        self._domain_request_history[domain].append(current_time)
-        
-        self.logger.debug(f"Domain rate check passed - {domain}: {recent_requests + 1}/{self._max_requests_per_domain_per_minute} requests in last minute")
-        return True
+        return await self.domain_limiter.check_rate_limit(url)
 
     def validate_content(self, content: ScrapedContent) -> bool:
         """
-        Validate scraped content against configuration rules.
+        Validate scraped content against configuration rules using ContentValidator.
         
         Args:
             content: ScrapedContent instance to validate
@@ -310,45 +221,7 @@ class EthicalScraper:
         Raises:
             ValidationException: If content validation fails
         """
-        # Check required fields
-        for field in self.required_fields:
-            if not hasattr(content, field) or not getattr(content, field):
-                exc = ValidationException(
-                    f"Required field '{field}' is missing or empty",
-                    validation_type="required_field",
-                    expected_value=f"non-empty {field}",
-                    actual_value=getattr(content, field, None)
-                )
-                handle_exception(exc, self.logger)
-        
-        # Check content length
-        content_length = len(content.content_html)
-        if content_length < self.min_content_length:
-            exc = ValidationException(
-                f"Content too short: {content_length} < {self.min_content_length} chars",
-                validation_type="content_length",
-                expected_value=f">= {self.min_content_length}",
-                actual_value=content_length
-            )
-            handle_exception(exc, self.logger)
-        
-        if content_length > self.max_content_length:
-            exc = ValidationException(
-                f"Content too long: {content_length} > {self.max_content_length} chars",
-                validation_type="content_length", 
-                expected_value=f"<= {self.max_content_length}",
-                actual_value=content_length
-            )
-            handle_exception(exc, self.logger)
-        
-        # Validate image URLs if enabled
-        if self.validation_config.get('image_url_validation', True):
-            for img_url in content.images:
-                if not validate_url(img_url):
-                    self.logger.warning(f"Invalid image URL: {img_url}")
-        
-        self.logger.debug(f"Content validation passed for {content.source_url}")
-        return True
+        return self.content_validator.validate(content)
 
     async def scrape_url(self, url: str, selector: str, **kwargs) -> ScrapedContent:
         """

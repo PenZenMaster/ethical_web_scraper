@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='utf-8'?>
+<scraped_contents exported_at="2025-08-28T00:57:23.923710Z" count="1">
+  <item>
+    <title />
+    <slug>test-title</slug>
+    <source_url>https://example.com/test</source_url>
+    <content_html>&lt;h1&gt;Test&lt;/h1&gt;&lt;p&gt;Content&lt;/p&gt;</content_html>
+    <images>
+      <item>https://example.com/test.jpg</item>
+    </images>
+    <scraped_at>2025-08-27T00:00:00.000000Z</scraped_at>
+    <metadata>
+      <title>Test Title</title>
+      <url>https://example.com/test</url>
+      <selector>body</selector>
+      <scrape_duration>1.5</scrape_duration>
+      <image_count>1</image_count>
+      <content_length>25</content_length>
+    </metadata>
+    <image_info />
+  </item>
+</scraped_contents>

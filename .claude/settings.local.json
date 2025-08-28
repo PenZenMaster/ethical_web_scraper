@@ -7,7 +7,9 @@
       "Bash(.venv/Scripts/python.exe:*)",
       "Bash(git add:*)",
       "Bash(\".venv\\Scripts\\python.exe\" -m pytest tests/test_image_manager.py -v)",
-      "Bash(\".venv\\Scripts\\python.exe\":*)"
+      "Bash(\".venv\\Scripts\\python.exe\":*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
