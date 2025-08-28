@@ -24,6 +24,7 @@ from .json_exporter import JSONExporter
 from .csv_exporter import CSVExporter
 from .xml_exporter import XMLExporter
 from .wordpress_exporter import WordPressExporter
+from .exporter_factory import ExporterFactory
 
 __all__ = [
     'BaseExporter',
@@ -31,5 +32,6 @@ __all__ = [
     'JSONExporter',
     'CSVExporter',
     'XMLExporter',
-    'WordPressExporter'
+    'WordPressExporter',
+    'ExporterFactory'
 ]

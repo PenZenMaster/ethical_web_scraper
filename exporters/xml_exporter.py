@@ -57,6 +57,15 @@ class XMLExporter(BaseExporter):
         root.set("count", str(len(contents)))
         
         for content in contents:
+            # Validate content first
+            validation_result = self.validate_content(content)
+            if not validation_result:
+                exc = ValidationException(
+                    f"Content validation failed: {', '.join(validation_result.errors)}",
+                    validation_type="export_validation"
+                )
+                handle_exception(exc, self.logger)
+            
             data = self.prepare_data(content)
             
             item = ET.SubElement(root, "item")
@@ -77,6 +86,9 @@ class XMLExporter(BaseExporter):
         # Determine output path
         if filepath:
             output_path = Path(filepath)
+            # Ensure .xml extension for backward compatibility
+            if output_path.suffix != '.xml':
+                output_path = output_path.with_suffix('.xml')
         else:
             output_dir_path = self.ensure_output_directory(output_dir)
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

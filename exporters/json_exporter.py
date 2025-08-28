@@ -59,36 +59,59 @@ class JSONExporter(BaseExporter):
         Raises:
             ValidationException: If content validation fails
         """
-        # JSON export expects single content
+        # Handle both single content and lists for backward compatibility
         if isinstance(content_or_contents, list):
             if len(content_or_contents) == 1:
+                # Single item in list - extract it
                 content = content_or_contents[0]
+                is_list_export = False
             else:
-                raise ValidationException(
-                    "JSON export requires single content item. Use CSV or XML for multiple items.",
-                    validation_type="export_format"
-                )
+                # Multiple items - export as JSON array
+                content = content_or_contents
+                is_list_export = True
         else:
             content = content_or_contents
+            is_list_export = False
         
-        # Validate content
-        validation_result = self.validate_content(content)
-        if not validation_result:
-            exc = ValidationException(
-                f"Content validation failed: {', '.join(validation_result.errors)}",
-                validation_type="export_validation"
-            )
-            handle_exception(exc, self.logger)
-        
-        # Prepare data
-        data = self.prepare_data(content)
+        # Validate and prepare data
+        if is_list_export:
+            # Validate each item in the list
+            for item in content:
+                validation_result = self.validate_content(item)
+                if not validation_result:
+                    exc = ValidationException(
+                        f"Content validation failed: {', '.join(validation_result.errors)}",
+                        validation_type="export_validation"
+                    )
+                    handle_exception(exc, self.logger)
+            
+            # Prepare data for each item
+            data = [self.prepare_data(item) for item in content]
+        else:
+            # Single item validation and preparation
+            validation_result = self.validate_content(content)
+            if not validation_result:
+                exc = ValidationException(
+                    f"Content validation failed: {', '.join(validation_result.errors)}",
+                    validation_type="export_validation"
+                )
+                handle_exception(exc, self.logger)
+            
+            data = self.prepare_data(content)
         
         # Determine output path
         if filepath:
             output_path = Path(filepath)
+            # Ensure .json extension for backward compatibility
+            if output_path.suffix != '.json':
+                output_path = output_path.with_suffix('.json')
         else:
             output_dir_path = self.ensure_output_directory(output_dir)
-            filename = self.generate_filename(content, 'json')
+            if is_list_export:
+                # For list exports, use first item for filename generation
+                filename = self.generate_filename(content[0], 'json')
+            else:
+                filename = self.generate_filename(content, 'json')
             output_path = output_dir_path / filename
         
         # Ensure parent directory exists

@@ -54,6 +54,15 @@ class CSVExporter(BaseExporter):
         # Convert all content to dicts and flatten complex fields
         data_list = []
         for content in contents:
+            # Validate content first
+            validation_result = self.validate_content(content)
+            if not validation_result:
+                exc = ValidationException(
+                    f"Content validation failed: {', '.join(validation_result.errors)}",
+                    validation_type="export_validation"
+                )
+                handle_exception(exc, self.logger)
+            
             data = self.prepare_data(content)
             
             # Flatten complex fields for CSV
@@ -70,6 +79,9 @@ class CSVExporter(BaseExporter):
         # Determine output path
         if filepath:
             output_path = Path(filepath)
+            # Ensure .csv extension for backward compatibility
+            if output_path.suffix != '.csv':
+                output_path = output_path.with_suffix('.csv')
         else:
             output_dir_path = self.ensure_output_directory(output_dir)
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")

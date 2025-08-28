@@ -10,7 +10,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from exporter import ContentExporter, ValidationResult, save_to_json
+from exporter import ContentExporter, save_to_json
+from exporters import ValidationResult, ExporterFactory
 from exceptions import ValidationException
 
 
@@ -45,7 +46,12 @@ class TestContentExporter:
         
         assert exporter.config == test_config
         assert exporter.output_config == test_config['output']
-        assert exporter.validation_config == test_config['validation']
+        # validation_config no longer exists - validation handled by individual exporters
+        assert exporter.default_format == test_config['output'].get('format', 'json')
+        assert 'json' in exporter.handlers
+        assert 'csv' in exporter.handlers
+        assert 'xml' in exporter.handlers
+        assert 'wordpress_xml' in exporter.handlers
     
     def test_exporter_validate_output_success(self, test_config, sample_scraped_content):
         """Test successful content validation."""
@@ -85,18 +91,19 @@ class TestContentExporter:
         result = exporter.validate_output(sample_scraped_content)
         
         assert result.is_valid is False
-        assert "Content length 11 is below minimum" in result.errors
+        assert "Content too short" in result.errors[0]
     
     def test_exporter_validate_output_content_too_long(self, test_config, sample_scraped_content):
         """Test validation with content too long."""
-        test_config['validation']['max_content_length'] = 20
+        test_config['validation']['min_content_length'] = 10  # Set low min
+        test_config['validation']['max_content_length'] = 20   # Set low max
         exporter = ContentExporter(test_config)
         sample_scraped_content.content_html = "<p>" + "x" * 50 + "</p>"  # Much longer
         
         result = exporter.validate_output(sample_scraped_content)
         
         assert result.is_valid is False
-        assert "Content length" in result.errors[0] and "exceeds maximum" in result.errors[0]
+        assert "Content too long" in result.errors[0]
 
 
 class TestJSONExport:

@@ -22,6 +22,7 @@ Comments:
 """
 
 import logging
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from image_processing import HTMLProcessor
@@ -70,7 +71,9 @@ class ImageManager:
             'download_and_rehost': DownloadRehostHandler(config, self.logger)
         }
         
+        
         self.logger.info(f"ImageManager initialized with handling mode: {self.handling_mode}")
+    
     
     def process_images(self, image_urls: List[str], alt_texts: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
@@ -142,29 +145,10 @@ class ImageManager:
                 'handling_mode': self.handling_mode
             }
     
-    def cleanup_failed_downloads(self):
+    def cleanup_failed_downloads(self) -> int:
         """Remove any incomplete or failed download files."""
         # Delegate to storage manager in download handlers
-        handler = self.handlers.get(self.handling_mode)
+        handler = self.handlers.get('download_local')
         if handler and hasattr(handler, 'storage_manager'):
             return handler.storage_manager.cleanup_failed_downloads()
         return 0
-
-
-# Maintain backward compatibility
-def process_images_legacy(image_urls: List[str], config: Dict[str, Any]) -> List[str]:
-    """
-    Legacy function to maintain compatibility with v1.00 behavior.
-    
-    Args:
-        image_urls: List of image URLs
-        config: Configuration dictionary
-        
-    Returns:
-        List of processed image URLs (absolute URLs)
-    """
-    return image_urls  # v1.00 behavior - just return URLs as-is
-
-
-# Re-export ImageInfo from handlers for backward compatibility
-from image_processing.format_handlers.absolute_urls_handler import ImageInfo

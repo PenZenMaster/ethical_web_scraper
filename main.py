@@ -7,7 +7,7 @@ from rich.table import Table
 
 from utils import setup_logging, load_config
 from scraper import EthicalScraper
-from exporter import ContentExporter
+from exporters import ExporterFactory
 from exceptions import handle_exception, EWSException
 
 app = typer.Typer(help="Ethical Web Scraper - A tool for responsible web scraping")
@@ -45,29 +45,22 @@ def scrape(
         result = asyncio.run(_scrape_single(url, selector, config))
         
         if result:
-            # Export results
-            exporter = ContentExporter(config)
+            # Export results using v1.1 modular exporters
+            logger = setup_logging(config.get('logging', {}), 'main')
             
             if format.lower() == "all":
                 formats = ["json", "csv", "xml"]
             else:
                 formats = [format.lower()]
-                
-            for fmt in formats:
+            
+            # Export using factory pattern
+            for export_format in formats:
                 try:
-                    if fmt == "json":
-                        filepath = exporter.export_json(result, output)
-                    elif fmt == "csv":
-                        filepath = exporter.export_csv([result], output)
-                    elif fmt == "xml":
-                        filepath = exporter.export_xml([result], output)
-                    else:
-                        console.print(f"[red]❌ Unknown format: {fmt}[/red]")
-                        continue
-                        
-                    console.print(f"[green]>>> Exported {fmt.upper()}: {filepath}[/green]")
+                    exporter = ExporterFactory.create_exporter(export_format, config, logger)
+                    export_path = exporter.export(result, output_dir=output)
+                    console.print(f"[green]>>> Exported {export_format.upper()}: {export_path}[/green]")
                 except Exception as e:
-                    console.print(f"[red]❌ Export failed ({fmt}): {e}[/red]")
+                    console.print(f"[red]❌ Export failed ({export_format}): {e}[/red]")
                     
             # Display summary
             _display_summary(result)
@@ -137,19 +130,12 @@ def batch(
         results = asyncio.run(_scrape_batch(urls, selector, config))
         
         if results:
-            # Export results
-            exporter = ContentExporter(config)
+            # Export results using v1.1 modular exporters
+            logger = setup_logging(config.get('logging', {}), 'main')
             
             try:
-                if format.lower() == "json":
-                    filepath = exporter.export_json(results, str(output_path / "batch_results"))
-                elif format.lower() == "csv":
-                    filepath = exporter.export_csv(results, str(output_path / "batch_results"))
-                elif format.lower() == "xml":
-                    filepath = exporter.export_xml(results, str(output_path / "batch_results"))
-                else:
-                    console.print(f"[red]❌ Unknown format: {format}[/red]")
-                    raise typer.Exit(1)
+                exporter = ExporterFactory.create_exporter(format.lower(), config, logger)
+                filepath = exporter.export(results, output_dir=str(output_path))
                     
                 console.print(f"[green]>>> Batch export complete: {filepath}[/green]")
                 console.print(f"[blue]>>>[/blue] Successfully scraped {len(results)} of {len(urls)} URLs")
@@ -317,9 +303,10 @@ def wordpress(
             
         console.print(f"[blue]>>> Exporting {len(results)} posts to WordPress XML[/blue]")
         
-        # Use WordPress XML format
-        exporter = ContentExporter(config)
-        output_file = exporter.export(results, format_type="wordpress_xml", filepath=output)
+        # Use WordPress XML format with v1.1 modular exporters
+        logger = setup_logging(config.get('logging', {}), 'main')
+        exporter = ExporterFactory.create_exporter('wordpress_xml', config, logger)
+        output_file = exporter.export(results, filepath=output)
         
         console.print(f"[green]>>> WordPress XML exported: {output_file}[/green]")
         console.print(f"[green]>>> Ready for import via WordPress Admin > Tools > Import > WordPress[/green]")

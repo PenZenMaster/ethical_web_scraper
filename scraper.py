@@ -333,7 +333,7 @@ class EthicalScraper:
                     await page.close()
                     
         except (ValidationException, RobotsException, NetworkException, 
-                RenderException, SelectorException) as e:
+                RenderException, SelectorException, RateLimitException) as e:
             # These are already handled and logged by handle_exception
             raise
         except Exception as e:

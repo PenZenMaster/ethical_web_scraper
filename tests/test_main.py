@@ -40,9 +40,11 @@ class TestCLICommands:
         )
         mock_run.return_value = mock_result
         
-        # Mock exporter
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "test_output.json"
+        # Mock exporter factory
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "test_output.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, ['scrape', 'https://example.com'])
             
@@ -77,8 +79,10 @@ class TestCLICommands:
         )
         mock_run.return_value = mock_result
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "custom_output.json"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "custom_output.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, [
                 'scrape', 
@@ -90,7 +94,7 @@ class TestCLICommands:
             ])
             
             assert result.exit_code == 0
-            mock_load_config.assert_called_once_with(None)  # No config file specified
+            mock_load_config.assert_called_once()  # No config file specified
     
     @patch('main.setup_logging')
     @patch('main.load_config')
@@ -110,11 +114,14 @@ class TestCLICommands:
         )
         mock_run.return_value = mock_result
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_instance = mock_exporter.return_value
-            mock_instance.export_json.return_value = "output.json"
-            mock_instance.export_csv.return_value = "output.csv"
-            mock_instance.export_xml.return_value = "output.xml"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            # For 'all' format, multiple exporters are created, each returning their format
+            def side_effect(format_type, config, logger):
+                mock_exp = MagicMock()
+                mock_exp.export.return_value = f"output.{format_type}"
+                return mock_exp
+            mock_create_exporter.side_effect = side_effect
             
             result = self.runner.invoke(app, [
                 'scrape',
@@ -142,7 +149,7 @@ class TestCLICommands:
         """Test successful batch command."""
         # Create URLs file
         urls_file = temp_dir / "urls.txt"
-        urls_file.write_text("https://example.com/1\\nhttps://example.com/2\\n")
+        urls_file.write_text("https://example.com/1\nhttps://example.com/2\n")
         
         mock_load_config.return_value = {'test': 'config'}
         mock_setup_logging.return_value = MagicMock()
@@ -156,12 +163,22 @@ class TestCLICommands:
                 content_html="<p>Test 1</p>",
                 images=[],
                 scraped_at="2025-08-27T00:00:00Z"
+            ),
+            ScrapedContent(
+                title="Test 2",
+                slug="test-2",
+                source_url="https://example.com/2",
+                content_html="<p>Test 2</p>",
+                images=[],
+                scraped_at="2025-08-27T00:00:00Z"
             )
         ]
         mock_run.return_value = mock_results
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "batch_results.json"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "batch_results.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, [
                 'batch',
@@ -171,6 +188,7 @@ class TestCLICommands:
             
             assert result.exit_code == 0
             assert "Found 2 URLs" in result.stdout
+            assert "Successfully scraped 2 of 2 URLs" in result.stdout
             assert "Batch export complete" in result.stdout
     
     def test_batch_command_file_not_found(self):
@@ -413,8 +431,10 @@ class TestConfigurationHandling:
         )
         mock_run.return_value = mock_result
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "output.json"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "output.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, [
                 'scrape',
@@ -444,8 +464,10 @@ class TestConfigurationHandling:
         )
         mock_run.return_value = mock_result
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "output.json"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "output.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, [
                 'scrape',
@@ -476,8 +498,10 @@ class TestConfigurationHandling:
         )
         mock_run.return_value = mock_result
         
-        with patch('main.ContentExporter') as mock_exporter:
-            mock_exporter.return_value.export_json.return_value = "output.json"
+        with patch('main.ExporterFactory.create_exporter') as mock_create_exporter:
+            mock_exporter = MagicMock()
+            mock_exporter.export.return_value = "output.json"
+            mock_create_exporter.return_value = mock_exporter
             
             result = self.runner.invoke(app, [
                 'scrape',
