@@ -80,8 +80,9 @@ class TestEthicalScraperInitialization:
         """Test rate limiting setup during initialization."""
         scraper = EthicalScraper(test_config)
         
-        assert scraper._max_requests_per_domain_per_minute == 100
-        assert isinstance(scraper._domain_request_history, dict)
+        # Rate limiting now handled by domain_limiter component
+        assert scraper.domain_limiter.scraping_config['max_requests_per_domain_per_minute'] == 100
+        assert hasattr(scraper.domain_limiter, 'request_tracker')
 
 
 class TestURLValidation:
@@ -129,9 +130,9 @@ class TestRobotsValidation:
         test_config['scraping']['respect_robots'] = True
         scraper = EthicalScraper(test_config)
         
-        # Mock successful robots.txt check
-        with patch.object(scraper, '_robots_cache', {"https://example.com/robots.txt": MagicMock()}):
-            mock_parser = scraper._robots_cache["https://example.com/robots.txt"]
+        # Mock successful robots.txt check using new modular structure
+        with patch.object(scraper.robots_validator, '_robots_cache', {"https://example.com/robots.txt": MagicMock()}):
+            mock_parser = scraper.robots_validator._robots_cache["https://example.com/robots.txt"]
             mock_parser.can_fetch.return_value = True
             
             result = await scraper.validate_robots_txt("https://example.com/test")
@@ -143,9 +144,9 @@ class TestRobotsValidation:
         test_config['scraping']['respect_robots'] = True
         scraper = EthicalScraper(test_config)
         
-        # Mock robots.txt that disallows scraping
-        with patch.object(scraper, '_robots_cache', {"https://example.com/robots.txt": MagicMock()}):
-            mock_parser = scraper._robots_cache["https://example.com/robots.txt"]
+        # Mock robots.txt that disallows scraping using new modular structure
+        with patch.object(scraper.robots_validator, '_robots_cache', {"https://example.com/robots.txt": MagicMock()}):
+            mock_parser = scraper.robots_validator._robots_cache["https://example.com/robots.txt"]
             mock_parser.can_fetch.return_value = False
             
             with pytest.raises(RobotsException) as exc_info:
@@ -159,7 +160,7 @@ class TestRobotsValidation:
         scraper = EthicalScraper(test_config)
         
         # Mock RobotFileParser that raises exception (no robots.txt)
-        with patch('scraper.RobotFileParser') as mock_parser_class:
+        with patch('validators.robots_validator.RobotFileParser') as mock_parser_class:
             mock_parser = MagicMock()
             mock_parser.read.side_effect = Exception("HTTP 404")
             mock_parser_class.return_value = mock_parser
@@ -178,7 +179,8 @@ class TestRateLimiting:
         
         result = await scraper.check_domain_rate_limit("https://example.com/test")
         assert result is True
-        assert "example.com" in scraper._domain_request_history
+        # Domain request history now in modular request tracker
+        assert "example.com" in scraper.domain_limiter.request_tracker._domain_request_history
     
     @pytest.mark.asyncio
     async def test_rate_limiting_within_limit(self, test_config):
@@ -215,14 +217,14 @@ class TestRateLimiting:
         # Manually add old request (older than 60 seconds)
         import time
         old_time = time.time() - 70  # 70 seconds ago
-        scraper._domain_request_history["example.com"] = [old_time] * 50
+        scraper.domain_limiter.request_tracker._domain_request_history["example.com"] = [old_time] * 50
         
         # New request should not be rate limited
         result = await scraper.check_domain_rate_limit("https://example.com/test")
         assert result is True
         
         # Old requests should be cleaned up
-        assert len(scraper._domain_request_history["example.com"]) == 1
+        assert len(scraper.domain_limiter.request_tracker._domain_request_history["example.com"]) == 1
 
 
 class TestContentValidation:
@@ -237,8 +239,10 @@ class TestContentValidation:
     
     def test_content_validation_too_short(self, test_config):
         """Test content validation with content too short."""
-        test_config['validation']['min_content_length'] = 100
-        scraper = EthicalScraper(test_config)
+        config_copy = test_config.copy()
+        config_copy['validation'] = test_config['validation'].copy()
+        config_copy['validation']['min_content_length'] = 100
+        scraper = EthicalScraper(config_copy)
         
         content = ScrapedContent(
             title="Test",
@@ -255,8 +259,10 @@ class TestContentValidation:
     
     def test_content_validation_too_long(self, test_config):
         """Test content validation with content too long."""
-        test_config['validation']['max_content_length'] = 50
-        scraper = EthicalScraper(test_config)
+        config_copy = test_config.copy()
+        config_copy['validation'] = test_config['validation'].copy()
+        config_copy['validation']['max_content_length'] = 50
+        scraper = EthicalScraper(config_copy)
         
         long_content = "<p>" + "x" * 100 + "</p>"  # Much longer than 50 chars
         content = ScrapedContent(
@@ -274,20 +280,26 @@ class TestContentValidation:
     
     def test_content_validation_missing_required_field(self, test_config):
         """Test content validation with missing required field."""
-        scraper = EthicalScraper(test_config)
+        # Make a copy and add a custom required field that won't be auto-fixed
+        config_copy = test_config.copy()
+        config_copy['validation'] = test_config['validation'].copy()
+        config_copy['validation']['required_fields'] = ['title', 'content_html', 'custom_field']
+        scraper = EthicalScraper(config_copy)
         
         content = ScrapedContent(
-            title="",  # Empty title (required field)
-            slug="test",
+            title="Valid Title",
+            slug="test", 
             source_url="https://example.com",
-            content_html="<p>Valid content here</p>",
+            content_html="<p>This is valid content that is long enough to pass the minimum content length requirement for validation testing purposes</p>",
             images=[],
             scraped_at="2025-08-27T00:00:00Z"
         )
+        # Remove the custom_field to trigger validation error
+        delattr(content, 'custom_field') if hasattr(content, 'custom_field') else None
         
         with pytest.raises(ValidationException) as exc_info:
             scraper.validate_content(content)
-        assert "Required field 'title'" in str(exc_info.value)
+        assert "Required field 'custom_field'" in str(exc_info.value)
 
 
 class TestScrapingProcess:
@@ -300,9 +312,11 @@ class TestScrapingProcess:
         scraper = EthicalScraper(test_config)
         
         # Mock browser manager
-        mock_browser_manager.return_value.__aenter__.return_value.get_page = AsyncMock(return_value=mock_page)
-        mock_page.title.return_value = "Test Page"
-        mock_page.content.return_value = "<html><body><h1>Test</h1></body></html>"
+        mock_browser_instance = AsyncMock()
+        mock_browser_manager.return_value.__aenter__.return_value = mock_browser_instance
+        mock_browser_instance.get_page = AsyncMock(return_value=mock_page)
+        mock_browser_instance.get_page_metadata = AsyncMock(return_value={"title": "Test Page"})
+        mock_page.content = AsyncMock(return_value="<html><body><h1>Test</h1></body></html>")
         
         # Mock extract_content
         with patch('scraper.extract_content') as mock_extract:
@@ -355,9 +369,11 @@ class TestBatchScraping:
         scraper = EthicalScraper(test_config)
         
         # Mock browser manager
-        mock_browser_manager.return_value.__aenter__.return_value.get_page = AsyncMock(return_value=mock_page)
-        mock_page.title.return_value = "Test Page"
-        mock_page.content.return_value = "<html><body><h1>Test</h1></body></html>"
+        mock_browser_instance = AsyncMock()
+        mock_browser_manager.return_value.__aenter__.return_value = mock_browser_instance
+        mock_browser_instance.get_page = AsyncMock(return_value=mock_page)
+        mock_browser_instance.get_page_metadata = AsyncMock(return_value={"title": "Test Page"})
+        mock_page.content = AsyncMock(return_value="<html><body><h1>Test</h1></body></html>")
         
         # Mock extract_content
         with patch('scraper.extract_content') as mock_extract:
@@ -465,8 +481,127 @@ class TestErrorRecovery:
         # After cleaning up old requests (mock time passage)
         import time
         current_time = time.time()
-        scraper._domain_request_history["example.com"] = [current_time - 70]  # Old request
+        scraper.domain_limiter.request_tracker._domain_request_history["example.com"] = [current_time - 70]  # Old request
         
         # New request should succeed
         result = await scraper.check_domain_rate_limit("https://example.com/test3")
         assert result is True
+
+
+class TestImageManagement:
+    """Test image management integration."""
+    
+    def test_scraped_content_with_image_info(self):
+        """Test ScrapedContent with image_info field."""
+        image_info = {
+            "https://example.com/image.jpg": {
+                "original_url": "https://example.com/image.jpg",
+                "local_path": "/images/example.com/image.jpg",
+                "downloaded": True,
+                "file_size": 12345
+            }
+        }
+        
+        content = ScrapedContent(
+            title="Test Title",
+            slug="test-title",
+            source_url="https://example.com",
+            content_html="<h1>Test</h1>",
+            images=["https://example.com/image.jpg"],
+            scraped_at="2025-08-27T00:00:00Z",
+            image_info=image_info
+        )
+        
+        assert content.image_info == image_info
+        assert "https://example.com/image.jpg" in content.image_info
+        assert content.image_info["https://example.com/image.jpg"]["downloaded"] is True
+
+    def test_extract_alt_texts(self, test_config):
+        """Test alt text extraction from HTML."""
+        scraper = EthicalScraper(test_config)
+        
+        html_content = '''
+        <html>
+        <body>
+            <img src="https://example.com/image1.jpg" alt="Test Image 1">
+            <img src="/relative/image2.png" alt="Test Image 2">
+            <img src="https://example.com/image3.gif">  <!-- No alt -->
+        </body>
+        </html>
+        '''
+        
+        image_urls = [
+            "https://example.com/image1.jpg",
+            "https://example.com/relative/image2.png", 
+            "https://example.com/image3.gif"
+        ]
+        
+        alt_texts = scraper._extract_alt_texts(html_content, image_urls)
+        
+        assert "https://example.com/image1.jpg" in alt_texts
+        assert alt_texts["https://example.com/image1.jpg"] == "Test Image 1"
+        assert "https://example.com/image3.gif" not in alt_texts  # No alt text
+
+    @pytest.mark.asyncio
+    @patch('scraper.BrowserManager')
+    @patch('scraper.extract_content')
+    async def test_scrape_with_image_processing(self, mock_extract_content, mock_browser_manager, test_config):
+        """Test complete scrape with image processing."""
+        # Configure for image downloading
+        test_config['output']['image_handling'] = 'download_local'
+        test_config['image_settings'] = {
+            'download_directory': 'test_images',
+            'organize_by_domain': True
+        }
+        
+        scraper = EthicalScraper(test_config)
+        
+        # Mock browser
+        mock_page = AsyncMock()
+        mock_browser = AsyncMock()
+        mock_browser.get_page.return_value = mock_page
+        mock_browser.render_content.return_value = '<html><img src="/test.jpg" alt="Test"></html>'
+        mock_browser.get_page_metadata.return_value = {'title': 'Test Page'}
+        mock_browser_manager.return_value.__aenter__.return_value = mock_browser
+        
+        # Mock content extraction
+        mock_extract_content.return_value = (
+            '<p>Test content <img src="https://example.com/test.jpg" alt="Test"></p>',
+            ['https://example.com/test.jpg']
+        )
+        
+        # Mock image manager to avoid actual downloads in tests
+        with patch.object(scraper.image_manager, 'process_images') as mock_process_images:
+            with patch.object(scraper.image_manager, 'update_html_content') as mock_update_html:
+                with patch.object(scraper.image_manager, 'get_statistics') as mock_get_stats:
+                    # Configure mocks
+                    mock_process_images.return_value = {
+                        'https://example.com/test.jpg': MagicMock(
+                            to_dict=MagicMock(return_value={
+                                'original_url': 'https://example.com/test.jpg',
+                                'downloaded': True,
+                                'local_path': 'test_images/example.com/test.jpg'
+                            })
+                        )
+                    }
+                    mock_update_html.return_value = '<p>Test content <img src="test_images/example.com/test.jpg" alt="Test"></p>'
+                    mock_get_stats.return_value = {
+                        'images_attempted': 1,
+                        'images_successful': 1,
+                        'handling_mode': 'download_local'
+                    }
+                    
+                    # Run scrape
+                    result = await scraper.scrape_url("https://example.com", "body")
+                    
+                    # Assertions
+                    assert result.title == "Test Page"
+                    assert result.images == ['https://example.com/test.jpg']
+                    assert result.image_info is not None
+                    assert 'https://example.com/test.jpg' in result.image_info
+                    assert result.metadata['image_processing']['handling_mode'] == 'download_local'
+                    
+                    # Verify image manager was called
+                    mock_process_images.assert_called_once()
+                    mock_update_html.assert_called_once()
+                    mock_get_stats.assert_called_once()

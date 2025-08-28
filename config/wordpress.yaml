@@ -80,6 +80,18 @@ output:
     post_type: 'post'         # Default to posts
     author_id: 1              # Assign to admin user
     enable_comments: false    # Disable comments on imported posts
+
+# WordPress Image Management Settings
+image_settings:
+  download_directory: "wordpress_images"
+  organize_by_domain: true
+  max_image_size: "10MB"  # Larger limit for WordPress content
+  allowed_formats: ["jpg", "jpeg", "png", "webp", "gif", "svg", "ico"]
+  create_thumbnails: false
+  optimize: true  # Optimize for web delivery
+  quality: 80     # Good balance for web
+  timeout: 45
+  wordpress_upload: true  # Enable WordPress media library integration
     
 logging:
   level: 'INFO'

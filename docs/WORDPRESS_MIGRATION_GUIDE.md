@@ -20,8 +20,8 @@ https://example-site.com/article-about-something/
 **⚠️ Important**: URLs should NOT have quotes around them.
 
 ### Step 2: Run the Migration
-```bash
-./run.bat wordpress my_urls.txt --output "my_import"
+```cmd
+run.bat wordpress my_urls.txt --output "my_import"
 ```
 
 ### Step 3: Import to WordPress
@@ -32,18 +32,18 @@ https://example-site.com/article-about-something/
 ## 📋 Complete Command Reference
 
 ### Basic WordPress Migration
-```bash
-./run.bat wordpress [urls_file] --output "import_name"
+```cmd
+run.bat wordpress [urls_file] --output "import_name"
 ```
 
 ### With Custom CSS Selector
-```bash
-./run.bat wordpress [urls_file] --selector ".content-area" --output "import_name"
+```cmd
+run.bat wordpress [urls_file] --selector ".content-area" --output "import_name"
 ```
 
 ### WordPress Auto-Detection (Recommended)
-```bash
-./run.bat wordpress [urls_file] --output "import_name"
+```cmd
+run.bat wordpress [urls_file] --output "import_name"
 ```
 The tool automatically tries common WordPress selectors:
 - `article.post`
@@ -68,7 +68,7 @@ The tool automatically tries common WordPress selectors:
 ### Real Examples from Our Testing
 
 **✅ Correct:**
-```bash
+```cmd
 # Single class
 --selector ".product-detail__content"
 
@@ -83,7 +83,7 @@ The tool automatically tries common WordPress selectors:
 ```
 
 **❌ Incorrect:**
-```bash
+```cmd
 # Missing dot for class
 --selector "product-detail__content"
 
@@ -105,16 +105,16 @@ your-project/
 ```
 
 ### Creating Output Directories
-```bash
-# Option 1: Let the tool create directories
-./run.bat wordpress urls.txt --output "imports/blog_migration"
+```cmd
+REM Option 1: Let the tool create directories
+run.bat wordpress urls.txt --output "imports/blog_migration"
 
-# Option 2: Create directory first  
+REM Option 2: Create directory first  
 mkdir imports
-./run.bat wordpress urls.txt --output "imports/my_content"
+run.bat wordpress urls.txt --output "imports/my_content"
 
-# Option 3: Use default output directory
-./run.bat wordpress urls.txt --output "my_import"
+REM Option 3: Use default output directory
+run.bat wordpress urls.txt --output "my_import"
 ```
 
 ## 🎯 Real-World Examples
@@ -130,8 +130,8 @@ https://external-blog.com/social-media-strategy/
 ```
 
 2. **Run migration**:
-```bash
-./run.bat wordpress blog_posts.txt --output "blog_migration"
+```cmd
+run.bat wordpress blog_posts.txt --output "blog_migration"
 ```
 
 3. **Result**: `blog_migration.xml` ready for WordPress import
@@ -146,25 +146,25 @@ https://company.com/products/widget-b/
 ```
 
 2. **Run with specific selector**:
-```bash
-./run.bat wordpress products.txt --selector ".product-detail__content" --output "product_imports"
+```cmd
+run.bat wordpress products.txt --selector ".product-detail__content" --output "product_imports"
 ```
 
 ### Example 3: Single Article Extraction  
 **Goal**: Get one specific article section
 
 **Direct approach**:
-```bash
-./run.bat scrape "https://site.com/article/" --selector "article#post-2757" --output "single_article"
+```cmd
+run.bat scrape "https://site.com/article/" --selector "article#post-2757" --output "single_article"
 ```
 
 **WordPress XML approach**:
-```bash
-# Create single URL file
-echo "https://site.com/article/" > single_url.txt
+```cmd
+REM Create single URL file
+echo https://site.com/article/ > single_url.txt
 
-# Extract as WordPress XML
-./run.bat wordpress single_url.txt --selector "article#post-2757" --output "article_import"
+REM Extract as WordPress XML
+run.bat wordpress single_url.txt --selector "article#post-2757" --output "article_import"
 ```
 
 ## 🆘 Troubleshooting Common Issues
@@ -185,13 +185,13 @@ https://example.com/     ✅ Correct
 
 **Solutions**:
 1. **Use auto-detection** (remove `--selector` parameter):
-```bash
-./run.bat wordpress urls.txt --output "import_name"
+```cmd
+run.bat wordpress urls.txt --output "import_name"
 ```
 
 2. **Try broader selectors**:
-```bash
-# Instead of specific classes, try:
+```cmd
+REM Instead of specific classes, try:
 --selector ".content"
 --selector "main"
 --selector "article"
@@ -210,16 +210,100 @@ https://example.com/     ✅ Correct
 
 **Solutions**:
 1. **Try a broader selector**:
-```bash
-# Instead of specific element, try parent container
+```cmd
+REM Instead of specific element, try parent container
 --selector ".main-content"
 --selector ".post-body"
 --selector "article"
 ```
 
 2. **Use auto-detection**:
-```bash
-./run.bat wordpress urls.txt --output "import_name"
+```cmd
+run.bat wordpress urls.txt --output "import_name"
+```
+
+### Issue 4: Image Processing Problems (v1.1+)
+**Problem**: Images not downloading or processing correctly
+
+**Common Solutions**:
+
+**Images Too Large:**
+```
+>>> Image skipped: image.jpg (15MB exceeds 10MB limit)
+```
+Solution: Images over 10MB are automatically skipped for WordPress compatibility
+
+**Image Format Issues:**
+```
+>>> Image skipped: image.bmp (unsupported format)
+```
+Solution: Only JPG, PNG, WebP, GIF, SVG, ICO formats supported
+
+**Download Failures:**
+```cmd
+REM Check verbose output for details
+run.bat wordpress urls.txt --verbose --output "import_name"
+```
+
+**Image Directory Issues:**
+```cmd
+REM Ensure write permissions for image directory
+REM Images saved to: wordpress_images/[domain]/
+```
+
+### Issue 5: WordPress Import Problems
+**Problem**: WordPress import fails or images missing
+
+**Solutions**:
+
+**Manual Image Upload:**
+1. Find images in `wordpress_images/[domain]/` folder
+2. Upload to WordPress Media Library manually
+3. Update image URLs in imported posts
+
+**Import File Size:**
+```cmd
+REM For large imports, WordPress may have file size limits
+REM Split into smaller batches if needed
+```
+
+## 🖼️ Image Processing Features (v1.1+)
+
+### Automatic Image Handling
+The v1.1 architecture includes comprehensive image processing with multiple modes:
+
+**Available Image Modes:**
+- `absolute_urls` (default): Converts relative image URLs to absolute
+- `download_local`: Downloads images to organized local directory
+- `download_and_rehost`: Downloads images for WordPress media library rehosting
+- `base64`: Embeds small images as base64 data
+
+**WordPress Image Processing:**
+```cmd
+REM Images automatically downloaded for rehosting
+run.bat wordpress urls.txt --output "import_name"
+
+REM Custom image directory
+run.bat wordpress urls.txt --output "import_name" 
+```
+
+**Image Organization:**
+- Images stored by domain: `wordpress_images/example.com/image1.jpg`
+- Alt text preserved from source pages
+- Size limits and format filtering (JPG, PNG, WebP, GIF, SVG)
+- Statistics tracking for processed images
+
+**WordPress-Specific Image Settings:**
+- **Max size**: 10MB limit for WordPress compatibility
+- **Optimization**: Images optimized for web delivery (quality: 80%)
+- **Media library ready**: Downloaded images ready for WordPress upload
+- **Format support**: All common web formats including WebP and SVG
+
+### Image Processing Output
+```
+>>> Processing images: 5 found, 4 downloaded, 1 skipped (too large)
+>>> Images saved to: wordpress_images/example-site.com/
+>>> Image statistics: Total: 5, Success: 4, Skipped: 1, Failed: 0
 ```
 
 ## ⚙️ Advanced Configuration
@@ -230,15 +314,16 @@ The tool uses `config/wordpress.yaml` for WordPress migrations, which includes:
 - **Longer timeouts**: Handles slow-loading pages
 - **Content filtering**: Removes sidebars, comments, navigation
 - **Draft import**: All content imported as drafts for review
+- **Image processing**: Automatic download and optimization for WordPress
 
 ### Custom Configuration
-```bash
-./run.bat wordpress urls.txt --config "my_config.yaml" --output "import_name"
+```cmd
+run.bat wordpress urls.txt --config "my_config.yaml" --output "import_name"
 ```
 
 ### Verbose Logging
-```bash
-./run.bat wordpress urls.txt --verbose --output "import_name"
+```cmd
+run.bat wordpress urls.txt --verbose --output "import_name"
 ```
 
 ## 📊 Understanding the Output
@@ -280,16 +365,16 @@ The tool uses `config/wordpress.yaml` for WordPress migrations, which includes:
 
 ### Tip 1: Test First
 Always test with a single URL before bulk processing:
-```bash
-echo "https://test-site.com/article/" > test.txt
-./run.bat wordpress test.txt --output "test_import"
+```cmd
+echo https://test-site.com/article/ > test.txt
+run.bat wordpress test.txt --output "test_import"
 ```
 
 ### Tip 2: Use Meaningful Output Names
-```bash
-# Good names help you organize
-./run.bat wordpress blog_urls.txt --output "blog_migration_2025"
-./run.bat wordpress product_urls.txt --output "products_january"
+```cmd
+REM Good names help you organize
+run.bat wordpress blog_urls.txt --output "blog_migration_2025"
+run.bat wordpress product_urls.txt --output "products_january"
 ```
 
 ### Tip 3: Check Content Before Import
@@ -303,35 +388,35 @@ The tool automatically imports content as drafts, so you can:
 
 ## 🎯 Quick Reference Card
 
-```bash
-# Basic WordPress migration
-./run.bat wordpress urls.txt --output "import_name"
+```cmd
+REM Basic WordPress migration
+run.bat wordpress urls.txt --output "import_name"
 
-# With specific content selector  
-./run.bat wordpress urls.txt --selector ".content" --output "import_name"
+REM With specific content selector  
+run.bat wordpress urls.txt --selector ".content" --output "import_name"
 
-# Single article (alternative method)
-./run.bat scrape "https://site.com/article/" --selector "article" --output "article"
+REM Single article (alternative method)
+run.bat scrape "https://site.com/article/" --selector "article" --output "article"
 
-# Verbose output for debugging
-./run.bat wordpress urls.txt --verbose --output "import_name"
+REM Verbose output for debugging
+run.bat wordpress urls.txt --verbose --output "import_name"
 
-# Custom configuration
-./run.bat wordpress urls.txt --config "config/wordpress.yaml" --output "import_name"
+REM Custom configuration
+run.bat wordpress urls.txt --config "config/wordpress.yaml" --output "import_name"
 ```
 
 ## 🆘 Getting Help
 
 ### Built-in Help
-```bash
-./run.bat --help                    # Main help
-./run.bat wordpress --help          # WordPress command help
-./run.bat scrape --help            # Single URL scraping help
+```cmd
+run.bat --help                    REM Main help
+run.bat wordpress --help          REM WordPress command help
+run.bat scrape --help            REM Single URL scraping help
 ```
 
 ### Test Functionality
-```bash
-./run.bat test                      # Quick functionality test
+```cmd
+run.bat test                      REM Quick functionality test
 ```
 
 ### Common File Locations

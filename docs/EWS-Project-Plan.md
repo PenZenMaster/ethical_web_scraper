@@ -1,4 +1,4 @@
-# Ethical Web Scraper – Specifications (v1.0)
+# Ethical Web Scraper – Specifications (v1.1)
 
 ## 📌 Purpose
 To extract specific, permitted sections of a partner website's rendered HTML (such as product details) and output the data into a JSON format suitable for republishing in WordPress or another CMS, preserving all images and links.
@@ -6,34 +6,59 @@ To extract specific, permitted sections of a partner website's rendered HTML (su
 ## 🚀 Quick Start Guide
 
 ### Installation
-```bash
-# Clone and setup
+```cmd
+REM Clone and setup
 git clone <repository-url>
 cd ethical_web_scraper
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 ### First Scrape
-```bash
-python main.py --url "https://example.com/product" --selector ".product-detail" --output "product.json"
+```cmd
+REM Single URL scraping
+python main.py scrape "https://example.com/product" --selector ".product-detail" 
+
+REM WordPress migration (recommended)
+python main.py wordpress urls.txt --output "my_migration"
 ```
 
 ### Common Use Cases
 
-#### Single Page Scrape
-```python
-from scraper import EthicalScraper
-
-scraper = EthicalScraper()
-result = scraper.scrape_url("https://example.com", ".content")
+#### Single Page Scrape (CLI)
+```cmd
+python main.py scrape "https://example.com" --selector ".content" --format json
 ```
 
-#### Batch Processing
+#### Batch Processing (CLI)  
+```cmd
+python main.py batch urls.txt --format csv --output-dir results
+```
+
+#### WordPress Migration (CLI)
+```cmd
+python main.py wordpress site_urls.txt --output "wp_import"
+```
+
+#### Programmatic Usage
 ```python
-urls = ["https://example.com/page1", "https://example.com/page2"]
-results = scraper.batch_scrape(urls, ".product-info")
+from scraper import EthicalScraper
+from exporters import ExporterFactory
+
+# Initialize with configuration
+scraper = EthicalScraper("config/default.yaml")
+
+# Single URL scraping (async)
+result = await scraper.scrape_url("https://example.com", ".content")
+
+# Batch processing (async)
+urls = ["https://example.com/page1", "https://example.com/page2"] 
+results = await scraper.batch_scrape(urls, ".product-info")
+
+# Export results using v1.1 modular exporters
+exporter = ExporterFactory.create_exporter('wordpress_xml', scraper.config, scraper.logger)
+export_path = exporter.export(results, output_dir="output")
 ```
 
 ---
@@ -149,12 +174,24 @@ class BrowserManager:
     async def close(self) -> None
 ```
 
-### Exporter Module
+### Exporter Module (v1.1 Modular Architecture)
 ```python
-class ContentExporter:
-    def export_json(self, content: ScrapedContent, filepath: str) -> None
-    def export_csv(self, contents: List[ScrapedContent], filepath: str) -> None
-    def validate_output(self, content: ScrapedContent) -> ValidationResult
+# Base exporter interface
+class BaseExporter(ABC):
+    def __init__(self, config: Dict[str, Any], logger: logging.Logger)
+    def export(self, content, filepath=None, output_dir=None) -> str
+
+# Factory for creating exporters
+class ExporterFactory:
+    @staticmethod
+    def create_exporter(format_type: str, config: dict, logger) -> BaseExporter
+
+# Specific exporter implementations
+class JsonExporter(BaseExporter):
+    def export(self, content: ScrapedContent, filepath: str = None) -> str
+
+class WordPressExporter(BaseExporter): 
+    def export(self, contents: List[ScrapedContent], filepath: str = None) -> str
 ```
 
 ---
@@ -243,11 +280,11 @@ validation:
 ```
 
 ### Environment Variables
-```bash
-EWS_CONFIG_PATH=config/production.yaml
-EWS_LOG_LEVEL=DEBUG
-EWS_OUTPUT_DIR=output/
-EWS_MAX_WORKERS=5
+```cmd
+set EWS_CONFIG_PATH=config/production.yaml
+set EWS_LOG_LEVEL=DEBUG
+set EWS_OUTPUT_DIR=output/
+set EWS_MAX_WORKERS=5
 ```
 
 ---
@@ -255,12 +292,12 @@ EWS_MAX_WORKERS=5
 ## 🧪 Testing Strategy
 
 ### Unit Tests
-```bash
+```cmd
 pytest tests/unit/ -v --cov=src --cov-report=html
 ```
 
 ### Integration Tests
-```bash
+```cmd
 pytest tests/integration/ -v --slow
 ```
 
@@ -377,11 +414,11 @@ main.py
 ### Common Issues
 
 #### Browser Fails to Launch
-```bash
-# Install browser binaries
+```cmd
+REM Install browser binaries
 playwright install chromium
 
-# Check system dependencies
+REM Check system dependencies
 playwright install-deps
 ```
 
@@ -414,14 +451,15 @@ scraping:
 ```
 
 ### Debug Commands
-```bash
-# Run with debug logging
-EWS_LOG_LEVEL=DEBUG python main.py --url "https://example.com"
+```cmd
+REM Run with debug logging
+set EWS_LOG_LEVEL=DEBUG
+python main.py --url "https://example.com"
 
-# Test single component
+REM Test single component
 python -m pytest tests/unit/test_browser.py -v -s
 
-# Validate configuration
+REM Validate configuration
 python -c "from utils import load_config; print(load_config())"
 ```
 
@@ -457,11 +495,11 @@ class NotificationHandler:
 ## 📝 Contributing Guidelines
 
 ### Development Setup
-```bash
+```cmd
 git clone <repository-url>
 cd ethical_web_scraper
 python -m venv venv
-source venv/bin/activate
+venv\Scripts\activate
 pip install -r requirements-dev.txt
 pre-commit install
 ```

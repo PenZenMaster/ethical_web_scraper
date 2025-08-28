@@ -23,6 +23,13 @@ Comments:
 from typing import Optional, Dict, Any
 from datetime import datetime
 
+# Import for test compatibility
+try:
+    from utils import get_timestamp
+except ImportError:
+    def get_timestamp() -> str:
+        return datetime.utcnow().isoformat() + 'Z'
+
 
 class EWSException(Exception):
     """
@@ -56,7 +63,7 @@ class EWSException(Exception):
         self.url = url
         self.recovery_action = recovery_action
         self.context = context or {}
-        self.timestamp = datetime.utcnow().isoformat() + 'Z'
+        self.timestamp = get_timestamp()
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -107,7 +114,7 @@ class NetworkException(EWSException):
             retry_count: Number of retry attempts made
             context: Additional context
         """
-        recovery_action = "Retry with exponential backoff"
+        recovery_action = "Check network connectivity and retry with exponential backoff"
         if status_code and status_code >= 500:
             recovery_action = "Server error - retry later"
         elif status_code and status_code == 429:
@@ -118,6 +125,12 @@ class NetworkException(EWSException):
         context = context or {}
         if status_code:
             context['status_code'] = status_code
+        # Set error_type only if not already provided in context
+        if 'error_type' not in context:
+            if status_code and status_code < 500:
+                context['error_type'] = 'http_error'
+            else:
+                context['error_type'] = 'network_error'
         context['retry_count'] = retry_count
         
         super().__init__(
@@ -144,6 +157,7 @@ class RenderException(EWSException):
         message: str, 
         url: Optional[str] = None,
         browser_error: Optional[str] = None,
+        timeout: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None
     ):
         """
@@ -153,17 +167,20 @@ class RenderException(EWSException):
             message: Error message
             url: URL being rendered
             browser_error: Underlying browser error
+            timeout: Timeout value if applicable
             context: Additional context
         """
-        recovery_action = "Fallback to basic HTML parsing"
+        recovery_action = "Fallback to basic HTML parsing for page loading issues"
         if "timeout" in message.lower():
-            recovery_action = "Increase browser timeout or retry"
+            recovery_action = "Increase browser timeout or retry page loading"
         elif "browser" in message.lower():
             recovery_action = "Restart browser or use different browser engine"
         
         context = context or {}
         if browser_error:
             context['browser_error'] = browser_error
+        if timeout:
+            context['timeout'] = timeout
         
         super().__init__(
             code="EWS002",
@@ -232,6 +249,7 @@ class ValidationException(EWSException):
         validation_type: Optional[str] = None,
         expected_value: Optional[Any] = None,
         actual_value: Optional[Any] = None,
+        recovery_action: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None
     ):
         """
@@ -245,11 +263,12 @@ class ValidationException(EWSException):
             actual_value: Actual value that failed
             context: Additional context
         """
-        recovery_action = "Skip item, continue processing"
-        if validation_type == "content_length":
-            recovery_action = "Adjust content length limits or use different selector"
-        elif validation_type == "required_field":
-            recovery_action = "Provide default value or make field optional"
+        if recovery_action is None:
+            recovery_action = "Skip item, continue processing"
+            if validation_type == "content_length":
+                recovery_action = "Adjust content length limits or use different selector"
+            elif validation_type == "required_field":
+                recovery_action = "Provide default value or make field optional"
         
         context = context or {}
         if validation_type:
@@ -418,14 +437,20 @@ def create_exception_from_code(
         ValueError: If error code is not recognized
     """
     if error_code not in ERROR_CODE_MAP:
-        raise ValueError(f"Unknown error code: {error_code}")
+        # Create a generic EWSException for unknown error codes
+        return EWSException(
+            code=error_code,
+            message=message,
+            recovery_action="Check error code documentation",
+            **kwargs
+        )
     
     exception_class = ERROR_CODE_MAP[error_code]
     return exception_class(message, **kwargs)
 
 
 def handle_exception(
-    exception: EWSException, 
+    exception, 
     logger=None, 
     reraise: bool = True
 ) -> Optional[Dict[str, Any]]:
@@ -433,7 +458,7 @@ def handle_exception(
     Centralized exception handling with logging and recovery suggestions.
     
     Args:
-        exception: EWS exception to handle
+        exception: Exception to handle (EWS or standard)
         logger: Logger instance for error reporting
         reraise: Whether to re-raise the exception after handling
         
@@ -441,18 +466,33 @@ def handle_exception(
         Exception information dictionary if not re-raising
         
     Raises:
-        EWSException: Re-raises the original exception if reraise=True
+        Exception: Re-raises the original exception if reraise=True
     """
-    error_info = exception.to_dict()
-    
-    if logger:
-        logger.error(
-            f"EWS Error {exception.code}: {exception.message}",
-            extra={'error_details': error_info}
-        )
+    if isinstance(exception, EWSException):
+        # Handle EWS exceptions
+        error_info = exception.to_dict()
         
-        if exception.recovery_action:
-            logger.info(f"Recovery suggestion: {exception.recovery_action}")
+        if logger:
+            logger.error(
+                f"EWS Error {exception.code}: {exception.message}",
+                extra={'error_details': error_info}
+            )
+            
+            if exception.recovery_action:
+                logger.info(f"Recovery suggestion: {exception.recovery_action}")
+    else:
+        # Handle non-EWS exceptions
+        error_info = {
+            'error_code': 'UNKNOWN',
+            'exception_type': type(exception).__name__,
+            'message': str(exception),
+            'timestamp': get_timestamp()
+        }
+        
+        if logger:
+            logger.error(
+                f"Unexpected error ({type(exception).__name__}): {exception}"
+            )
     
     if reraise:
         raise exception

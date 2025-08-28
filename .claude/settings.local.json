@@ -5,7 +5,13 @@
       "Bash(python:*)",
       "Bash(pip install:*)",
       "Bash(.venv/Scripts/python.exe:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(\".venv\\Scripts\\python.exe\" -m pytest tests/test_image_manager.py -v)",
+      "Bash(\".venv\\Scripts\\python.exe\":*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(.venv\\Scripts\\python.exe -m pip install:*)",
+      "Bash(.venvScriptspython.exe -m pytest tests/test_scraper.py -v)"
     ],
     "deny": [],
     "ask": []

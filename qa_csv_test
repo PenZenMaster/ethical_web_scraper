@@ -1,9 +1,0 @@
-content_html,images,metadata_content_length,metadata_image_count,metadata_scrape_duration,metadata_selector,metadata_title,metadata_url,scraped_at,slug,source_url,title
-"<body>
-<div>
-<h1>Example Domain</h1>
-<p>This domain is for use in illustrative examples in documents. You may use this
-    domain in literature without prior coordination or asking for permission.</p>
-<p><a href=""https://www.iana.org/domains/example"">More information...</a></p>
-</div>
-</body>",,293,0,7.25,body,Example Domain,https://example.com/,2025-08-27T14:40:09.231490Z,example-domain,https://example.com,Example Domain
