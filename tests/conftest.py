@@ -2,6 +2,7 @@
 Pytest configuration and shared fixtures for the test suite.
 """
 
+import copy
 import pytest
 import tempfile
 import shutil
@@ -66,7 +67,7 @@ SAMPLE_HTML = """
 @pytest.fixture
 def test_config():
     """Provide test configuration."""
-    return TEST_CONFIG.copy()
+    return copy.deepcopy(TEST_CONFIG)
 
 @pytest.fixture
 def sample_html():
